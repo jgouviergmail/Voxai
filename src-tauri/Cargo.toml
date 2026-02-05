@@ -1,0 +1,58 @@
+[workspace]
+members = [".", "llm-worker"]
+
+[package]
+name = "voxai"
+version = "0.1.0"
+edition = "2021"
+description = "Voice-to-text dictation for Windows"
+
+[lib]
+name = "voxai_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async
+async-trait = "0.1"
+
+# Error handling
+thiserror = "2"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.11"
+dirs = "6"
+
+# Audio
+cpal = "0.17"
+rubato = "0.14"
+
+# STT
+whisper-rs = "0.15"
+
+# LLM
+ollama-rs = { version = "0.3", features = ["stream"] }
+# llama-cpp-2 is NOT linked here — it runs in a separate worker process
+# (src-tauri/llm-worker/) to avoid ggml symbol collision with whisper-rs-sys.
+
+# Text injection
+enigo = "0.6"
+arboard = "3"
+
+# Hotkey
+rdev = "0.5"
+
+# Model management
+hf-hub = { version = "0.4", features = ["tokio"] }
+

@@ -1,0 +1,8 @@
+DEV
+
+$env:LIBCLANG_PATH = "C:\Program Files\Unity\Hub\Editor\6000.3.6f1\Editor\Data\PlaybackEngines\WebGLSupport\BuildTools\Emscripten\llvm"
+$env:Path += ";C:\Users\jgouv\.cargo\bin"
+$env:Path += ";C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
+cd d:\Developpement\Voxai
+cargo tauri dev
+

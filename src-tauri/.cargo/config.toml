@@ -1,0 +1,4 @@
+# No special linker flags needed.
+# whisper-rs-sys and llama-cpp-sys-2 cannot coexist in the same binary
+# because they embed incompatible ggml versions.
+# Local LLM runs in a separate worker process (llm-worker crate).
