@@ -3,6 +3,7 @@ import type { HistoryEntry } from "../../types";
 import { getHistory, clearHistory as clearHistoryCmd } from "../../lib/commands";
 import Button from "../ui/Button";
 import { appStore } from "../../lib/stores";
+import { i18n } from "../../lib/i18n";
 
 export default function HistoryTab() {
   const [entries, setEntries] = createSignal<HistoryEntry[]>([]);
@@ -32,18 +33,18 @@ export default function HistoryTab() {
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <p class={`text-sm ${mutedText()}`}>
-          {entries().length} transcription{entries().length !== 1 ? "s" : ""}
+          {entries().length} {entries().length !== 1 ? i18n.t("history.count_other") : i18n.t("history.count_one")}
         </p>
         <Show when={entries().length > 0}>
           <Button size="sm" variant="danger" onClick={handleClear}>
-            Clear all
+            {i18n.t("history.clear")}
           </Button>
         </Show>
       </div>
 
       <Show
         when={entries().length > 0}
-        fallback={<p class={`${mutedText()} text-sm`}>No history yet.</p>}
+        fallback={<p class={`${mutedText()} text-sm`}>{i18n.t("history.empty")}</p>}
       >
         <div class="space-y-2">
           <For each={entries()}>
@@ -52,7 +53,7 @@ export default function HistoryTab() {
                 <p class="text-sm">{entry.final_text}</p>
                 <Show when={entry.raw_text !== entry.final_text}>
                   <p class={`text-xs ${mutedText()} mt-1 italic`}>
-                    Original: {entry.raw_text}
+                    {i18n.t("history.original")} {entry.raw_text}
                   </p>
                 </Show>
                 <div class={`flex gap-4 mt-2 text-xs ${mutedText()}`}>

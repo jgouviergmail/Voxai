@@ -1,15 +1,11 @@
-import { createSignal, onMount, onCleanup } from "solid-js";
-import type { AppConfig, InputDeviceInfo, LanguageInfo } from "../../types";
-import { listAudioDevices, listSupportedLanguages, updateSettings } from "../../lib/commands";
+import { createSignal, onMount, onCleanup, Show } from "solid-js";
+import type { AppConfig, InputDeviceInfo, LanguageInfo, NvidiaInfo } from "../../types";
+import { detectNvidia, listAudioDevices, listSupportedLanguages } from "../../lib/commands";
 import Toggle from "../ui/Toggle";
 import Select from "../ui/Select";
 import Button from "../ui/Button";
 import { appStore } from "../../lib/stores";
-
-interface GeneralTabProps {
-  config: AppConfig;
-  onUpdate: (config: AppConfig) => void;
-}
+import { i18n } from "../../lib/i18n";
 
 /** Maps JS event.code / event.key to rdev key names used by the backend. */
 function mapKeyToRdev(e: KeyboardEvent): string | null {
@@ -41,11 +37,11 @@ function formatHotkey(key: string, modifiers: string[]): string {
 
 const DEFAULT_HOTKEY = { key: "Space", modifiers: ["Control", "Shift"] };
 
-export default function GeneralTab(props: GeneralTabProps) {
+export default function GeneralTab() {
   const [devices, setDevices] = createSignal<InputDeviceInfo[]>([]);
   const [languages, setLanguages] = createSignal<LanguageInfo[]>([]);
-  const [saving, setSaving] = createSignal(false);
   const [recording, setRecording] = createSignal(false);
+  const [gpuInfo, setGpuInfo] = createSignal<NvidiaInfo | null>(null);
 
   // Hotkey recorder state — tracked outside signals for proper cleanup
   let activeHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -74,22 +70,18 @@ export default function GeneralTab(props: GeneralTabProps) {
     } catch (e) {
       console.error("Failed to load devices/languages:", e);
     }
+    try {
+      setGpuInfo(await detectNvidia());
+    } catch (e) {
+      console.error("GPU detection failed:", e);
+    }
   });
 
   onCleanup(() => cancelRecording());
 
-  const save = async (updater: (c: AppConfig) => void) => {
-    const c = structuredClone(props.config);
-    updater(c);
-    setSaving(true);
-    try {
-      await updateSettings(c);
-      props.onUpdate(c);
-    } catch (e) {
-      appStore.showError(String(e));
-    }
-    setSaving(false);
-  };
+  const save = (updater: (c: AppConfig) => void) => appStore.saveSetting(updater);
+
+  const config = () => appStore.config()!;
 
   const isDark = () => appStore.theme() === "dark";
   const borderClass = () =>
@@ -100,14 +92,14 @@ export default function GeneralTab(props: GeneralTabProps) {
   return (
     <div class="space-y-4">
       <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider`}>
-        Input
+        {i18n.t("general.input")}
       </h3>
 
       <Select
-        label="Microphone"
-        value={props.config.general.input_device ?? ""}
+        label={i18n.t("general.microphone")}
+        value={config().general.input_device ?? ""}
         options={[
-          { value: "", label: "Default device" },
+          { value: "", label: i18n.t("general.default_device") },
           ...devices().map((d) => ({
             value: d.name,
             label: `${d.name}${d.is_default ? " (default)" : ""}`,
@@ -117,8 +109,8 @@ export default function GeneralTab(props: GeneralTabProps) {
       />
 
       <Select
-        label="Language"
-        value={props.config.general.language}
+        label={i18n.t("general.language")}
+        value={config().general.language}
         options={languages().map((l) => ({
           value: l.code,
           label: l.name,
@@ -126,29 +118,43 @@ export default function GeneralTab(props: GeneralTabProps) {
         onChange={(v) => save((c) => (c.general.language = v))}
       />
 
+      <Select
+        label={i18n.t("general.ui_language")}
+        value={config().general.ui_language ?? "en"}
+        options={[
+          { value: "en", label: "English" },
+          { value: "fr", label: "Fran\u00e7ais" },
+          { value: "zh", label: "\u4e2d\u6587" },
+        ]}
+        onChange={(v) => {
+          save((c) => (c.general.ui_language = v));
+          i18n.setLocale(v);
+        }}
+      />
+
       <div class={`border-t ${borderClass()} pt-4 mt-4`}>
         <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          Behavior
+          {i18n.t("general.behavior")}
         </h3>
 
         <Toggle
-          label="Auto-enter"
-          description="Press Enter after injecting text"
-          checked={props.config.general.auto_enter}
+          label={i18n.t("general.auto_enter")}
+          description={i18n.t("general.auto_enter_desc")}
+          checked={config().general.auto_enter}
           onChange={(v) => save((c) => (c.general.auto_enter = v))}
         />
 
         <Toggle
-          label="Restore clipboard"
-          description="Restore previous clipboard content after paste"
-          checked={props.config.general.clipboard_restore}
+          label={i18n.t("general.restore_clipboard")}
+          description={i18n.t("general.restore_clipboard_desc")}
+          checked={config().general.clipboard_restore}
           onChange={(v) => save((c) => (c.general.clipboard_restore = v))}
         />
       </div>
 
       <div class={`border-t ${borderClass()} pt-4 mt-4`}>
         <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          Hotkey
+          {i18n.t("general.hotkey")}
         </h3>
         <div
           class={`rounded-lg p-3 text-sm ${
@@ -158,11 +164,11 @@ export default function GeneralTab(props: GeneralTabProps) {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class={isDark() ? "text-gray-400" : "text-gray-500"}>
-                Push-to-talk:{" "}
+                {i18n.t("general.push_to_talk")}{" "}
               </span>
               {recording() ? (
                 <span class="text-yellow-500 animate-pulse text-xs font-medium">
-                  Press your shortcut...
+                  {i18n.t("general.press_shortcut")}
                 </span>
               ) : (
                 <kbd
@@ -173,8 +179,8 @@ export default function GeneralTab(props: GeneralTabProps) {
                   }`}
                 >
                   {formatHotkey(
-                    props.config.general.hotkey.key,
-                    props.config.general.hotkey.modifiers
+                    config().general.hotkey.key,
+                    config().general.hotkey.modifiers
                   )}
                 </kbd>
               )}
@@ -206,7 +212,7 @@ export default function GeneralTab(props: GeneralTabProps) {
                   document.addEventListener("keydown", activeHandler, true);
                 }}
               >
-                {recording() ? "Cancel" : "Record"}
+                {recording() ? i18n.t("general.cancel") : i18n.t("general.record")}
               </Button>
               <Button
                 size="sm"
@@ -217,11 +223,38 @@ export default function GeneralTab(props: GeneralTabProps) {
                   })
                 }
               >
-                Reset
+                {i18n.t("general.reset")}
               </Button>
             </div>
           </div>
         </div>
+      </div>
+
+      <div class={`border-t ${borderClass()} pt-4 mt-4`}>
+        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
+          {i18n.t("general.gpu")}
+        </h3>
+        <Show when={gpuInfo()?.detected} fallback={
+          <p class={`text-xs ${headingColor()}`}>
+            {i18n.t("general.no_gpu")}
+          </p>
+        }>
+          <div class={`rounded-lg p-3 text-sm mb-2 ${isDark() ? "bg-gray-800" : "bg-gray-100"}`}>
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-green-500" />
+              <span>{gpuInfo()!.gpu_name}</span>
+            </div>
+            <p class={`text-xs mt-1 ${headingColor()}`}>
+              {i18n.t("general.driver")} {gpuInfo()!.driver_version} &middot; {gpuInfo()!.vram_mb} MB VRAM
+            </p>
+          </div>
+          <Toggle
+            label={i18n.t("general.enable_gpu")}
+            description={i18n.t("general.enable_gpu_desc")}
+            checked={config().general.gpu_acceleration}
+            onChange={(v) => save((c) => (c.general.gpu_acceleration = v))}
+          />
+        </Show>
       </div>
     </div>
   );

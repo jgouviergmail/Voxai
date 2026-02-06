@@ -108,7 +108,7 @@ pub async fn set_active_model(
                 .write()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             config.llm.local.model_id = Some(model_id.clone());
-            persistence::save_config(&config)?;
+            persistence::save_and_notify(&config, &state.app_handle)?;
         }
 
         let new_backend = {
@@ -144,7 +144,7 @@ pub async fn set_active_model(
                 .write()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             config.stt.active_model = Some(model_id.clone());
-            persistence::save_config(&config)?;
+            persistence::save_and_notify(&config, &state.app_handle)?;
         }
     }
 

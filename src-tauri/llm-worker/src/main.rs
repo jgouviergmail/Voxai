@@ -57,11 +57,26 @@ impl Response {
     }
 }
 
-fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &str) -> Result<String, String> {
-    let combined = format!(
-        "<|system|>\n{}<|end|>\n<|user|>\n{}<|end|>\n<|assistant|>\n",
-        system, prompt
-    );
+fn format_chat(system: &str, prompt: &str, template: &str) -> String {
+    match template {
+        "qwen2" | "chatml" => format!(
+            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
+            system, prompt
+        ),
+        "gemma" => format!(
+            "<start_of_turn>user\n{}\n\n{}<end_of_turn>\n<start_of_turn>model\n",
+            system, prompt
+        ),
+        // "phi3" and default
+        _ => format!(
+            "<|system|>\n{}<|end|>\n<|user|>\n{}<|end|>\n<|assistant|>\n",
+            system, prompt
+        ),
+    }
+}
+
+fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &str, chat_template: &str) -> Result<String, String> {
+    let combined = format_chat(system, prompt, chat_template);
 
     let ctx_params = LlamaContextParams::default()
         .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()));
@@ -131,7 +146,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage: voxai-llm-worker <model-path>");
+        eprintln!("Usage: voxai-llm-worker <model-path> [chat-template] [--gpu-layers N]");
         std::process::exit(1);
     }
 
@@ -141,12 +156,23 @@ fn main() {
         std::process::exit(1);
     }
 
-    // Redirect stderr to suppress llama.cpp's verbose logging to stderr
-    // (the main app reads our stdout JSON; stderr noise is harmless but
-    //  we keep it for debugging in dev mode)
+    // Parse chat template (arg 2, default "phi3")
+    let chat_template = args.get(2)
+        .filter(|s| !s.starts_with("--"))
+        .map(|s| s.as_str())
+        .unwrap_or("phi3");
+
+    // Parse --gpu-layers flag
+    let gpu_layers: u32 = args.windows(2)
+        .find(|w| w[0] == "--gpu-layers")
+        .and_then(|w| w[1].parse().ok())
+        .unwrap_or(0);
 
     let backend = LlamaBackend::init().expect("Failed to init llama backend");
-    let model_params = LlamaModelParams::default();
+    let mut model_params = LlamaModelParams::default();
+    if gpu_layers > 0 {
+        model_params = model_params.with_n_gpu_layers(gpu_layers);
+    }
     let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
         .expect("Failed to load model");
 
@@ -182,7 +208,7 @@ fn main() {
         let resp = if req.command.as_deref() == Some("ping") {
             Response::pong()
         } else if let (Some(prompt), Some(system)) = (req.prompt.as_ref(), req.system.as_ref()) {
-            match generate(&model, &backend, prompt, system) {
+            match generate(&model, &backend, prompt, system, chat_template) {
                 Ok(text) => Response::ok(text),
                 Err(e) => Response::err(e),
             }

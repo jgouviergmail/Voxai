@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -12,6 +13,7 @@ use crate::models::cache::ModelCache;
 use crate::stt::SttEngine;
 
 pub struct AppState {
+    pub app_handle: tauri::AppHandle,
     pub config: Arc<RwLock<AppConfig>>,
     pub recording: Arc<RwLock<RecordingState>>,
     pub stt_engine: Arc<Mutex<Box<dyn SttEngine>>>,
@@ -25,6 +27,8 @@ pub struct AppState {
     pub model_cache: Arc<Mutex<ModelCache>>,
     /// Shared with keyboard_hook thread — updated live when hotkey config changes.
     pub hotkey_config: Arc<RwLock<HotkeyConfig>>,
+    /// Cancel tokens for active model downloads. Key = model_id.
+    pub active_downloads: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]

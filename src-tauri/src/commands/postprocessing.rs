@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use serde::Serialize;
 use tauri::State;
 
 use crate::app_state::AppState;
+use crate::config::schema::ReformulationStyle;
 use crate::error::AppError;
 use crate::llm::prompt_templates;
 use crate::llm::LlmBackend;
@@ -40,12 +42,16 @@ pub async fn test_reformulation(
     text: String,
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
-    let style = {
+    let (style, custom_prompts, overrides) = {
         let config = state
             .config
             .read()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        config.postprocessing.reformulation.style.clone()
+        (
+            config.postprocessing.reformulation.style.clone(),
+            config.postprocessing.custom_prompts.clone(),
+            config.postprocessing.prompt_overrides.clone(),
+        )
     };
 
     let backend: Arc<dyn LlmBackend> = {
@@ -58,7 +64,7 @@ pub async fn test_reformulation(
             .ok_or_else(|| AppError::Llm("No LLM backend configured".to_string()))?
     };
 
-    let prompt = prompt_templates::build_reformulation_prompt(&text, &style);
+    let prompt = prompt_templates::build_reformulation_prompt(&text, &style, &custom_prompts, &overrides);
     backend.generate(&prompt.user, &prompt.system).await
 }
 
@@ -147,6 +153,8 @@ pub async fn test_text_pipeline(
                 let prompt = prompt_templates::build_reformulation_prompt(
                     &current,
                     &pp_config.reformulation.style,
+                    &pp_config.custom_prompts,
+                    &pp_config.prompt_overrides,
                 );
                 match b.generate(&prompt.user, &prompt.system).await {
                     Ok(r) if !r.is_empty() => {
@@ -201,5 +209,54 @@ pub async fn test_text_pipeline(
         after_translation,
         after_substitutions: after_substitutions.clone(),
         final_text: after_substitutions,
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PromptPreview {
+    pub system: String,
+    pub instruction: String,
+    pub is_modified: bool,
+}
+
+#[tauri::command]
+pub fn get_prompt_preview(
+    style: String,
+    state: State<'_, AppState>,
+) -> Result<PromptPreview, AppError> {
+    let config = state
+        .config
+        .read()
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // Parse the style string into a ReformulationStyle
+    let reformulation_style = match style.as_str() {
+        "Cleaned" => ReformulationStyle::Cleaned,
+        "Professional" => ReformulationStyle::Professional,
+        "Casual" => ReformulationStyle::Casual,
+        "Concise" => ReformulationStyle::Concise,
+        "Simplified" => ReformulationStyle::Simplified,
+        "Structured" => ReformulationStyle::Structured,
+        other => ReformulationStyle::Custom(other.to_string()),
+    };
+
+    let (system, instruction) = prompt_templates::resolve_prompt(
+        &reformulation_style,
+        &config.postprocessing.custom_prompts,
+        &config.postprocessing.prompt_overrides,
+    );
+
+    let is_modified = match &reformulation_style {
+        ReformulationStyle::Custom(_) => false,
+        _ => config
+            .postprocessing
+            .prompt_overrides
+            .contains_key(&format!("{:?}", reformulation_style)),
+    };
+
+    Ok(PromptPreview {
+        system,
+        instruction,
+        is_modified,
     })
 }

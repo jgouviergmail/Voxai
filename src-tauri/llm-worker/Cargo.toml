@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Subprocess worker for local LLM inference (isolates ggml symbols from whisper)"
 
+[features]
+default = []
+cuda = ["llama-cpp-2/cuda"]
+
 [dependencies]
 llama-cpp-2 = "0.1"
 serde = { version = "1", features = ["derive"] }

@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for Voxai",
-  "windows": ["settings"],
+  "windows": ["settings", "overlay"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

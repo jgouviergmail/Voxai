@@ -55,4 +55,6 @@ rdev = "0.5"
 
 # Model management
 hf-hub = { version = "0.4", features = ["tokio"] }
+reqwest = { version = "0.12", features = ["stream"] }
+futures-util = "0.3"
 

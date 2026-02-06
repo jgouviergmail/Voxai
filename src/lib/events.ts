@@ -16,5 +16,8 @@ export const onDownloadProgress = (
 ): Promise<UnlistenFn> =>
   listen<DownloadProgress>("download-progress", (e) => cb(e.payload));
 
+export const onSettingsUpdated = (cb: () => void): Promise<UnlistenFn> =>
+  listen("settings-updated", () => cb());
+
 export const onError = (cb: (message: string) => void): Promise<UnlistenFn> =>
   listen<string>("app-error", (e) => cb(e.payload));

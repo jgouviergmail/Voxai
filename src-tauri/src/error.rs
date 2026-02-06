@@ -1,8 +1,10 @@
 use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Error, Debug, Serialize)]
-#[serde(tag = "kind", content = "message")]
+/// Application error type. Serializes as a plain string via `Display`
+/// so that the Tauri frontend receives a human-readable message
+/// (not a JSON object) when `invoke()` rejects.
+#[derive(Error, Debug)]
 pub enum AppError {
     #[error("Audio error: {0}")]
     Audio(String),
@@ -24,6 +26,12 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+}
+
+impl Serialize for AppError {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 // -- From impls for crate errors --

@@ -1,8 +1,10 @@
 import { type JSX, Show } from "solid-js";
 import { appStore } from "../../lib/stores";
+import { i18n } from "../../lib/i18n";
 
 interface PageShellProps {
   children: JSX.Element;
+  statusBar?: JSX.Element;
 }
 
 export default function PageShell(props: PageShellProps) {
@@ -26,7 +28,7 @@ export default function PageShell(props: PageShellProps) {
           <p
             class={`text-xs ${isDark() ? "text-gray-500" : "text-gray-400"}`}
           >
-            Voice-to-text dictation
+            {i18n.t("app.subtitle")}
           </p>
         </div>
         <button
@@ -41,6 +43,17 @@ export default function PageShell(props: PageShellProps) {
           {isDark() ? "\u2600" : "\u263E"}
         </button>
       </header>
+
+      {/* Status bar — fixed, not scrollable */}
+      <Show when={props.statusBar}>
+        <div
+          class={`shrink-0 border-b px-5 py-2 ${
+            isDark() ? "border-gray-800" : "border-gray-200"
+          }`}
+        >
+          {props.statusBar}
+        </div>
+      </Show>
 
       {/* Scrollable content */}
       <main class="flex-1 overflow-y-auto px-5 py-4">

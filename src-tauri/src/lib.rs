@@ -74,6 +74,7 @@ pub fn run() {
 
             // Build AppState
             let app_state = AppState {
+                app_handle: app.handle().clone(),
                 config: Arc::new(RwLock::new(config.clone())),
                 recording: Arc::new(RwLock::new(RecordingState::Idle)),
                 stt_engine: Arc::new(Mutex::new(stt_engine)),
@@ -84,6 +85,7 @@ pub fn run() {
                 llm_backend: Arc::new(RwLock::new(llm_backend)),
                 model_cache: Arc::new(Mutex::new(model_cache)),
                 hotkey_config: Arc::clone(&hotkey_config),
+                active_downloads: Arc::new(Mutex::new(std::collections::HashMap::new())),
             };
 
             app.manage(app_state);
@@ -180,6 +182,7 @@ pub fn run() {
             commands::models::list_models,
             commands::models::download_model,
             commands::models::delete_model,
+            commands::models::cancel_download,
             // Engines
             commands::engines::list_engines,
             commands::engines::set_active_model,
@@ -193,6 +196,9 @@ pub fn run() {
             commands::postprocessing::test_reformulation,
             commands::postprocessing::test_translation,
             commands::postprocessing::test_text_pipeline,
+            commands::postprocessing::get_prompt_preview,
+            // GPU
+            commands::gpu::detect_nvidia,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -201,24 +207,44 @@ pub fn run() {
     app.set_device_event_filter(tauri::DeviceEventFilter::Always);
 
     app.run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                log::info!("Shutting down gracefully...");
-                let state = app.state::<AppState>();
-
-                // Stop recording if active
-                if state.is_recording.load(Ordering::SeqCst) {
-                    state.is_recording.store(false, Ordering::SeqCst);
-                    if let Ok(mut capture) = state.audio_capture.lock() {
-                        let _ = capture.stop();
+            match event {
+                tauri::RunEvent::WindowEvent { label, event, .. } => {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        if label == "settings" {
+                            // Close-to-tray: hide settings window, show overlay
+                            api.prevent_close();
+                            if let Some(window) = app.get_webview_window("settings") {
+                                let _ = window.hide();
+                            }
+                            if let Some(overlay) = app.get_webview_window("overlay") {
+                                let _ = overlay.show();
+                            }
+                        } else if label == "overlay" {
+                            // Prevent overlay destruction (e.g. Alt+F4)
+                            api.prevent_close();
+                        }
                     }
                 }
+                tauri::RunEvent::ExitRequested { .. } => {
+                    log::info!("Shutting down gracefully...");
+                    let state = app.state::<AppState>();
 
-                // Save config one last time
-                if let Ok(config) = state.config.read() {
-                    let _ = persistence::save_config(&config);
+                    // Stop recording if active
+                    if state.is_recording.load(Ordering::SeqCst) {
+                        state.is_recording.store(false, Ordering::SeqCst);
+                        if let Ok(mut capture) = state.audio_capture.lock() {
+                            let _ = capture.stop();
+                        }
+                    }
+
+                    // Save config one last time
+                    if let Ok(config) = state.config.read() {
+                        let _ = persistence::save_config(&config);
+                    }
+
+                    log::info!("Shutdown complete");
                 }
-
-                log::info!("Shutdown complete");
+                _ => {}
             }
         });
 }
@@ -477,11 +503,14 @@ pub(crate) fn build_local_llm_backend(
             return None;
         }
     };
-    let model_name = models::registry::find_model(model_id)
+    let model_def = models::registry::find_model(model_id);
+    let model_name = model_def
         .map(|d| d.name.to_string())
         .unwrap_or_else(|| model_id.to_string());
+    let chat_template = model_def.map(|d| d.chat_template).unwrap_or("phi3");
+    let gpu_layers = if config.general.gpu_acceleration { Some(99) } else { None };
 
-    match llm::local_llm::LocalLlmBackend::new(&model_path, model_name) {
+    match llm::local_llm::LocalLlmBackend::new(&model_path, model_name, chat_template, gpu_layers) {
         Ok(backend) => {
             log::info!("Local LLM backend loaded: {}", model_id);
             Some(Arc::new(backend))

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +17,14 @@ pub struct GeneralConfig {
     pub auto_enter: bool,
     pub clipboard_restore: bool,
     pub language: String,
+    #[serde(default)]
+    pub gpu_acceleration: bool,
+    #[serde(default = "default_ui_language")]
+    pub ui_language: String,
+}
+
+fn default_ui_language() -> String {
+    "en".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +46,12 @@ pub struct PostProcessingConfig {
     pub reformulation: ReformulationConfig,
     pub translation: TranslationConfig,
     pub substitutions: Vec<SubstitutionRule>,
+    /// Custom prompts created by the user.
+    #[serde(default)]
+    pub custom_prompts: Vec<CustomPrompt>,
+    /// Overrides for built-in prompts (key = style name, e.g. "Cleaned").
+    #[serde(default)]
+    pub prompt_overrides: HashMap<String, PromptOverride>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +69,20 @@ pub enum ReformulationStyle {
     Simplified,
     Structured,
     Custom(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomPrompt {
+    pub id: String,
+    pub name: String,
+    pub system: String,
+    pub instruction: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptOverride {
+    pub system: Option<String>,
+    pub instruction: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,6 +140,8 @@ impl Default for AppConfig {
                 auto_enter: false,
                 clipboard_restore: true,
                 language: "fr".to_string(),
+                gpu_acceleration: false,
+                ui_language: "en".to_string(),
             },
             stt: SttConfig {
                 active_engine: "whisper".to_string(),
@@ -128,6 +159,8 @@ impl Default for AppConfig {
                     target_language: "en".to_string(),
                 },
                 substitutions: Vec::new(),
+                custom_prompts: Vec::new(),
+                prompt_overrides: HashMap::new(),
             },
             llm: LlmConfig {
                 active_backend: LlmBackendType::None,

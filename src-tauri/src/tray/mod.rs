@@ -42,6 +42,9 @@ pub fn build_tray(app: &AppHandle) -> Result<(), AppError> {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+                if let Some(overlay) = app.get_webview_window("overlay") {
+                    let _ = overlay.hide();
+                }
             }
             "quit" => {
                 app.exit(0);

@@ -14,6 +14,8 @@ export interface GeneralConfig {
   auto_enter: boolean;
   clipboard_restore: boolean;
   language: string;
+  gpu_acceleration: boolean;
+  ui_language: string;
 }
 
 export interface HotkeyConfig {
@@ -32,6 +34,26 @@ export interface PostProcessingConfig {
   reformulation: ReformulationConfig;
   translation: TranslationConfig;
   substitutions: SubstitutionRule[];
+  custom_prompts: CustomPrompt[];
+  prompt_overrides: Record<string, PromptOverride>;
+}
+
+export interface CustomPrompt {
+  id: string;
+  name: string;
+  system: string;
+  instruction: string;
+}
+
+export interface PromptOverride {
+  system: string | null;
+  instruction: string | null;
+}
+
+export interface PromptPreview {
+  system: string;
+  instruction: string;
+  is_modified: boolean;
 }
 
 export interface ReformulationConfig {
@@ -147,4 +169,11 @@ export interface PipelineTestResult {
 export interface LanguageInfo {
   code: string;
   name: string;
+}
+
+export interface NvidiaInfo {
+  detected: boolean;
+  gpu_name: string;
+  driver_version: string;
+  vram_mb: number;
 }

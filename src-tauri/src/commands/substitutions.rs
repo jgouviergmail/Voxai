@@ -24,7 +24,7 @@ pub fn add_substitution(
         .write()
         .map_err(|e| AppError::Internal(e.to_string()))?;
     config.postprocessing.substitutions.push(rule);
-    persistence::save_config(&config)?;
+    persistence::save_and_notify(&config, &state.app_handle)?;
     Ok(())
 }
 
@@ -43,6 +43,6 @@ pub fn delete_substitution(index: usize, state: State<'_, AppState>) -> Result<(
     }
 
     config.postprocessing.substitutions.remove(index);
-    persistence::save_config(&config)?;
+    persistence::save_and_notify(&config, &state.app_handle)?;
     Ok(())
 }

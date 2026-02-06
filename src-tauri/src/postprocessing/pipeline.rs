@@ -29,8 +29,12 @@ pub async fn run_pipeline(
     if config.reformulation.enabled {
         if let Some(backend) = llm {
             if backend.is_available().await {
-                let prompt =
-                    prompt_templates::build_reformulation_prompt(&text, &config.reformulation.style);
+                let prompt = prompt_templates::build_reformulation_prompt(
+                    &text,
+                    &config.reformulation.style,
+                    &config.custom_prompts,
+                    &config.prompt_overrides,
+                );
                 match backend.generate(&prompt.user, &prompt.system).await {
                     Ok(reformulated) => {
                         if !reformulated.is_empty() {

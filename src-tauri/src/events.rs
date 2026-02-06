@@ -4,6 +4,7 @@ use serde::Serialize;
 pub const EVENT_RECORDING_STATE_CHANGED: &str = "recording-state-changed";
 pub const EVENT_TRANSCRIPTION_COMPLETE: &str = "transcription-complete";
 pub const EVENT_DOWNLOAD_PROGRESS: &str = "download-progress";
+pub const EVENT_SETTINGS_UPDATED: &str = "settings-updated";
 pub const EVENT_ERROR: &str = "app-error";
 
 // Event payload types

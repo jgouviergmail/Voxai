@@ -21,7 +21,7 @@ pub fn update_settings(
     config: AppConfig,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
-    persistence::save_config(&config)?;
+    persistence::save_and_notify(&config, &state.app_handle)?;
 
     // Check if LLM backend config changed — rebuild if needed
     let needs_llm_rebuild = {
@@ -34,6 +34,7 @@ pub fn update_settings(
             || current.llm.ollama.port != config.llm.ollama.port
             || current.llm.ollama.model != config.llm.ollama.model
             || current.llm.local.model_id != config.llm.local.model_id
+            || current.general.gpu_acceleration != config.general.gpu_acceleration
     };
 
     // Update config

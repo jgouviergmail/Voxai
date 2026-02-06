@@ -65,17 +65,29 @@ pub struct LocalLlmBackend {
 }
 
 impl LocalLlmBackend {
-    pub fn new(model_path: &Path, model_name: String) -> Result<Self, AppError> {
+    pub fn new(
+        model_path: &Path,
+        model_name: String,
+        chat_template: &str,
+        gpu_layers: Option<u32>,
+    ) -> Result<Self, AppError> {
         let worker_bin = find_worker_binary()?;
 
         log::info!(
-            "Spawning LLM worker: {} with model {}",
+            "Spawning LLM worker: {} with model {} (template={}, gpu_layers={:?})",
             worker_bin.display(),
-            model_path.display()
+            model_path.display(),
+            chat_template,
+            gpu_layers,
         );
 
-        let mut child = Command::new(&worker_bin)
-            .arg(model_path)
+        let mut cmd = Command::new(&worker_bin);
+        cmd.arg(model_path).arg(chat_template);
+        if let Some(layers) = gpu_layers {
+            cmd.args(["--gpu-layers", &layers.to_string()]);
+        }
+
+        let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

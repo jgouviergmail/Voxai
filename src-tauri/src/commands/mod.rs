@@ -1,5 +1,6 @@
 pub mod audio_devices;
 pub mod engines;
+pub mod gpu;
 pub mod history;
 pub mod models;
 pub mod postprocessing;

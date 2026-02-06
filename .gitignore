@@ -43,3 +43,6 @@ npm-debug.log*
 
 # Vite
 *.local
+
+TODO.txt
+BUILD.txt

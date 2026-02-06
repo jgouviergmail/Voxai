@@ -1,5 +1,6 @@
 import { createSignal, createRoot } from "solid-js";
 import type { AppConfig, RecordingState, HistoryEntry } from "../types";
+import { updateSettings } from "./commands";
 
 function createAppStore() {
   const [config, setConfig] = createSignal<AppConfig | null>(null);
@@ -19,6 +20,24 @@ function createAppStore() {
     setTheme((t) => (t === "dark" ? "light" : "dark"));
   };
 
+  // Serialized save queue — prevents race conditions from rapid concurrent saves
+  let saveQueue: Promise<void> = Promise.resolve();
+  const saveSetting = (updater: (c: AppConfig) => void): Promise<void> => {
+    saveQueue = saveQueue.then(async () => {
+      const current = config();
+      if (!current) return;
+      const c = structuredClone(current);
+      updater(c);
+      try {
+        await updateSettings(c);
+        setConfig(c);
+      } catch (e) {
+        showError(String(e));
+      }
+    });
+    return saveQueue;
+  };
+
   return {
     config,
     setConfig,
@@ -32,6 +51,7 @@ function createAppStore() {
     theme,
     setTheme,
     toggleTheme,
+    saveSetting,
   };
 }
 

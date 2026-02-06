@@ -1,25 +1,20 @@
 import { createSignal, For, Show } from "solid-js";
-import type { AppConfig, SubstitutionRule } from "../../types";
+import type { SubstitutionRule } from "../../types";
 import {
   addSubstitution,
   deleteSubstitution,
 } from "../../lib/commands";
 import Button from "../ui/Button";
-import Toggle from "../ui/Toggle";
 import { appStore } from "../../lib/stores";
+import { i18n } from "../../lib/i18n";
 
-interface SubstitutionsTabProps {
-  config: AppConfig;
-  onUpdate: (config: AppConfig) => void;
-}
-
-export default function SubstitutionsTab(props: SubstitutionsTabProps) {
+export default function SubstitutionsTab() {
   const [newFrom, setNewFrom] = createSignal("");
   const [newTo, setNewTo] = createSignal("");
   const [newCaseSensitive, setNewCaseSensitive] = createSignal(false);
   const [previewInput, setPreviewInput] = createSignal("");
 
-  const rules = () => props.config.postprocessing.substitutions;
+  const rules = () => appStore.config()?.postprocessing.substitutions ?? [];
 
   const handleAdd = async () => {
     const from = newFrom().trim();
@@ -34,9 +29,7 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
 
     try {
       await addSubstitution(rule);
-      const c = structuredClone(props.config);
-      c.postprocessing.substitutions.push(rule);
-      props.onUpdate(c);
+      // Store is refreshed automatically by the settings-updated event
       setNewFrom("");
       setNewTo("");
       setNewCaseSensitive(false);
@@ -48,9 +41,7 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
   const handleDelete = async (index: number) => {
     try {
       await deleteSubstitution(index);
-      const c = structuredClone(props.config);
-      c.postprocessing.substitutions.splice(index, 1);
-      props.onUpdate(c);
+      // Store is refreshed automatically by the settings-updated event
     } catch (e) {
       appStore.showError(String(e));
     }
@@ -69,23 +60,22 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
   return (
     <div class="space-y-4">
       <p class={`text-sm ${mutedText()}`}>
-        Substitutions replace specific words or phrases in your transcription.
-        They run after all other post-processing (including LLM reformulation).
+        {i18n.t("sub.description")}
       </p>
 
       {/* Add new rule */}
       <div class={`${cardBg()} rounded-lg p-4 space-y-3`}>
-        <h3 class="text-sm font-semibold">Add substitution</h3>
+        <h3 class="text-sm font-semibold">{i18n.t("sub.add")}</h3>
         <div class="grid grid-cols-2 gap-2">
           <input
             class={inputClass()}
-            placeholder="Replace this..."
+            placeholder={i18n.t("sub.from_placeholder")}
             value={newFrom()}
             onInput={(e) => setNewFrom(e.currentTarget.value)}
           />
           <input
             class={inputClass()}
-            placeholder="With this..."
+            placeholder={i18n.t("sub.to_placeholder")}
             value={newTo()}
             onInput={(e) => setNewTo(e.currentTarget.value)}
           />
@@ -98,10 +88,10 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
               onChange={(e) => setNewCaseSensitive(e.currentTarget.checked)}
               class="rounded"
             />
-            Case sensitive
+            {i18n.t("sub.case_sensitive")}
           </label>
           <Button size="sm" onClick={handleAdd} disabled={!newFrom().trim()}>
-            Add
+            {i18n.t("sub.add_button")}
           </Button>
         </div>
       </div>
@@ -110,7 +100,7 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
       <Show
         when={rules().length > 0}
         fallback={
-          <p class={`${mutedText()} text-sm`}>No substitutions configured.</p>
+          <p class={`${mutedText()} text-sm`}>{i18n.t("sub.none")}</p>
         }
       >
         <div class="space-y-1">
@@ -122,7 +112,7 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
                 <div class="flex items-center gap-2 text-sm min-w-0" data-selectable>
                   <code class={isDark() ? "text-red-400" : "text-red-600"}>{rule.from}</code>
                   <span class={mutedText()}>&rarr;</span>
-                  <code class={isDark() ? "text-green-400" : "text-green-600"}>{rule.to || "(remove)"}</code>
+                  <code class={isDark() ? "text-green-400" : "text-green-600"}>{rule.to || i18n.t("sub.remove")}</code>
                   <Show when={rule.case_sensitive}>
                     <span class="text-xs text-gray-600">[Aa]</span>
                   </Show>
@@ -143,17 +133,17 @@ export default function SubstitutionsTab(props: SubstitutionsTabProps) {
       {/* Test preview */}
       <Show when={rules().length > 0}>
         <div class={`${cardBg()} rounded-lg p-4 space-y-2`}>
-          <h3 class="text-sm font-semibold">Preview</h3>
+          <h3 class="text-sm font-semibold">{i18n.t("sub.preview")}</h3>
           <input
             class={inputClass()}
-            placeholder="Enter text to preview substitutions..."
+            placeholder={i18n.t("sub.preview_placeholder")}
             value={previewInput()}
             onInput={(e) => setPreviewInput(e.currentTarget.value)}
             style={{ width: "100%" }}
           />
           <Show when={previewInput()}>
             <div class={`text-sm mt-1 ${isDark() ? "text-gray-300" : "text-gray-700"}`}>
-              <span class={mutedText()}>Result: </span>
+              <span class={mutedText()}>{i18n.t("sub.result")}</span>
               {applySubstitutionsLocally(previewInput(), rules())}
             </div>
           </Show>

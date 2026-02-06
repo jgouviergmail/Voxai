@@ -7,7 +7,9 @@ import type {
   LanguageInfo,
   LlmStatus,
   ModelInfo,
+  NvidiaInfo,
   PipelineTestResult,
+  PromptPreview,
   RecordingState,
   SubstitutionRule,
 } from "../types";
@@ -37,6 +39,8 @@ export const downloadModel = (modelId: string) =>
   invoke("download_model", { modelId });
 export const deleteModel = (modelId: string) =>
   invoke("delete_model", { modelId });
+export const cancelDownload = (modelId: string) =>
+  invoke("cancel_download", { modelId });
 
 // Engines
 export const listEngines = () => invoke<EngineInfo[]>("list_engines");
@@ -61,3 +65,8 @@ export const testTranslation = (text: string, targetLanguage: string) =>
   invoke<string>("test_translation", { text, targetLanguage });
 export const testTextPipeline = (text: string) =>
   invoke<PipelineTestResult>("test_text_pipeline", { text });
+export const getPromptPreview = (style: string) =>
+  invoke<PromptPreview>("get_prompt_preview", { style });
+
+// GPU
+export const detectNvidia = () => invoke<NvidiaInfo>("detect_nvidia");
