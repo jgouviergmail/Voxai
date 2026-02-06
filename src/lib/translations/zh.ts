@@ -24,8 +24,8 @@ const zh: Record<string, string> = {
   "general.auto_enter_desc": "\u6ce8\u5165\u6587\u672c\u540e\u81ea\u52a8\u6309\u56de\u8f66\u952e",
   "general.restore_clipboard": "\u6062\u590d\u526a\u8d34\u677f",
   "general.restore_clipboard_desc": "\u7c98\u8d34\u540e\u6062\u590d\u4e4b\u524d\u7684\u526a\u8d34\u677f\u5185\u5bb9",
-  "general.hotkey": "\u5feb\u6377\u952e",
-  "general.push_to_talk": "\u6309\u952e\u8bf4\u8bdd\uff1a",
+  "general.hotkey": "\u8bed\u97f3\u8f93\u5165\u5feb\u6377\u952e",
+  "general.push_to_talk": "\u89e6\u53d1\u8bed\u97f3\u8bc6\u522b\uff1a",
   "general.press_shortcut": "\u8bf7\u6309\u4e0b\u5feb\u6377\u952e...",
   "general.cancel": "\u53d6\u6d88",
   "general.record": "\u5f55\u5236",
@@ -36,6 +36,13 @@ const zh: Record<string, string> = {
   "general.enable_gpu": "\u542f\u7528 GPU \u52a0\u901f",
   "general.enable_gpu_desc": "\u4f7f\u7528 NVIDIA GPU \u8fdb\u884c\u672c\u5730 LLM \u63a8\u7406\uff08\u9700\u8981 CUDA \u7f16\u8bd1\uff09",
   "general.ui_language": "\u754c\u9762\u8bed\u8a00",
+  "general.text_hotkey": "\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",
+  "general.text_hotkey_enable": "\u542f\u7528\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",
+  "general.text_hotkey_desc": "\u9009\u62e9\u6587\u672c\u5e76\u6309\u4e0b\u5feb\u6377\u952e\u5373\u53ef\u5c31\u5730\u6539\u5199/\u7ffb\u8bd1",
+
+  // Overlay
+  "overlay.reformulation": "\u6539\u5199",
+  "overlay.translation": "\u7ffb\u8bd1",
 
   // Engines
   "engines.loaded": "\u5df2\u52a0\u8f7d",
@@ -47,6 +54,24 @@ const zh: Record<string, string> = {
   "engines.activate": "\u6fc0\u6d3b",
   "engines.delete": "\u5220\u9664",
   "engines.loading": "\u52a0\u8f7d\u5f15\u64ce\u4e2d...",
+  "engines.name.whisper": "\u8bed\u97f3\u8bc6\u522b\uff1aWhisper",
+  "engines.name.llm": "\u6587\u672c\u540e\u5904\u7406\uff1a\u672c\u5730 LLM",
+  "engines.whisper_desc": "\u9009\u62e9\u8bed\u97f3\u8bc6\u522b\u6a21\u578b\u3002\u6a21\u578b\u8d8a\u5148\u8fdb\uff0c\u8bc6\u522b\u8d8a\u7cbe\u51c6\u667a\u80fd\uff0c\u4f46\u5904\u7406\u65f6\u95f4\u4f1a\u7a0d\u957f\u3002",
+  "engines.llm_desc": "\u9009\u62e9\u7528\u4e8e\u6539\u5199\u548c\u7ffb\u8bd1\u7684\u667a\u80fd\u5904\u7406\u6a21\u578b\u3002\u6a21\u578b\u8d8a\u5148\u8fdb\uff0c\u5904\u7406\u8d8a\u7cbe\u51c6\u667a\u80fd\uff0c\u4f46\u5904\u7406\u65f6\u95f4\u4f1a\u7a0d\u957f\u3002",
+
+  // \u6a21\u578b\u63cf\u8ff0
+  "model.name.whisper-base": "Whisper Base\uff08\u6700\u5feb\uff09",
+  "model.name.whisper-small": "Whisper Small\uff08\u901f\u5ea6\u4e0e\u7cbe\u5ea6\u6700\u4f73\u5e73\u8861\uff09",
+  "model.desc.whisper-base": "\u5feb\u901f\uff0c\u9002\u5408\u77ed\u53e5\u542c\u5199\u3002\u5904\u7406\u65f6\u95f4\u7ea6 1 \u79d2\u3002",
+  "model.desc.whisper-small": "\u66f4\u9ad8\u7cbe\u5ea6\uff0c\u901f\u5ea6\u5408\u7406\u3002\u5904\u7406\u65f6\u95f4\u7ea6 2-3 \u79d2\u3002",
+  "model.desc.whisper-medium": "\u9ad8\u7cbe\u5ea6\u3002\u5904\u7406\u65f6\u95f4\u7ea6 5-8 \u79d2\u3002",
+  "model.desc.whisper-large-v3": "\u6700\u9ad8\u7cbe\u5ea6\u3002\u5904\u7406\u65f6\u95f4\u7ea6 10-15 \u79d2\u3002\u9700\u8981 4GB+ \u5185\u5b58\u3002",
+  "model.desc.gemma-3-1b-q4": "Google Gemma 3\u3002140+ \u8bed\u8a00\uff0c128K \u4e0a\u4e0b\u6587\uff0cCPU \u4e0a\u975e\u5e38\u5feb\u3002",
+  "model.desc.qwen3-1.7b-q4": "100+ \u8bed\u8a00\uff0c\u601d\u7ef4\u6a21\u5f0f\u3002\u5feb\u901f\u4e14\u591a\u8bed\u8a00\u3002",
+  "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4)\uff08\u901f\u5ea6\u4e0e\u7cbe\u5ea6\u6700\u4f73\u5e73\u8861\uff09",
+  "model.desc.phi-4-mini-q4": "Microsoft Phi-4\u300223 \u79cd\u8bed\u8a00\uff0c\u5f3a\u63a8\u7406\u80fd\u529b\u3002",
+  "model.desc.qwen3-4b-q4": "100+ \u8bed\u8a00\uff0c\u5f3a\u63a8\u7406\u80fd\u529b\u3002\u6700\u4f73\u7efc\u5408\u8d28\u91cf\u3002",
+  "model.desc.gemma-3-4b-q4": "Google Gemma 3\u3002140+ \u8bed\u8a00\uff0c\u6700\u4f73\u6307\u4ee4\u9075\u5faa\u3002",
 
   // Post-Processing
   "pp.text_cleanup": "\u6587\u672c\u6e05\u7406",
@@ -69,7 +94,7 @@ const zh: Record<string, string> = {
   "pp.local_info": "\u672c\u5730 LLM \u4f7f\u7528\u901a\u8fc7 llama.cpp \u5728 CPU \u4e0a\u8fd0\u884c\u7684 GGUF \u6a21\u578b\u3002\u8bf7\u5728\u5f15\u64ce\u9009\u9879\u5361\u4e2d\u4e0b\u8f7d\u6a21\u578b\u3002",
   "pp.reformulation": "\u6539\u5199",
   "pp.enable_reformulation": "\u542f\u7528\u6539\u5199",
-  "pp.enable_reformulation_desc": "\u4f7f\u7528 LLM \u6539\u5199\u8f6c\u5f55\u6587\u672c",
+  "pp.enable_reformulation_desc": "\u4f7f\u7528 LLM \u6539\u5199\u8f6c\u5f55\u6587\u672c\u3002\u4e0a\u4e0b\u6587\u8d8a\u957f\uff0c\u6539\u5199\u8d8a\u76f8\u5173",
   "pp.requires_llm": "\u9700\u8981\u6d3b\u52a8\u7684 LLM \u540e\u7aef\uff08\u8bf7\u5728\u4e0a\u65b9\u914d\u7f6e\uff09",
   "pp.style": "\u98ce\u683c",
   "pp.style_cleaned": "\u6e05\u7406\uff08\u4fee\u6b63\u8bed\u6cd5\uff09",

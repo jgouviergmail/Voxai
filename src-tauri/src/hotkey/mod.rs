@@ -4,6 +4,7 @@ pub mod keyboard_hook;
 pub enum HotkeyEvent {
     RecordStart,
     RecordStop,
+    TextProcess,
 }
 
 /// Re-export start_listener from keyboard_hook

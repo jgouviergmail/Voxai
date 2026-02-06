@@ -24,8 +24,8 @@ const en: Record<string, string> = {
   "general.auto_enter_desc": "Press Enter after injecting text",
   "general.restore_clipboard": "Restore clipboard",
   "general.restore_clipboard_desc": "Restore previous clipboard content after paste",
-  "general.hotkey": "Hotkey",
-  "general.push_to_talk": "Push-to-talk:",
+  "general.hotkey": "Voice input shortcuts",
+  "general.push_to_talk": "Trigger voice recognition:",
   "general.press_shortcut": "Press your shortcut...",
   "general.cancel": "Cancel",
   "general.record": "Record",
@@ -36,6 +36,13 @@ const en: Record<string, string> = {
   "general.enable_gpu": "Enable GPU acceleration",
   "general.enable_gpu_desc": "Use NVIDIA GPU for local LLM inference (requires CUDA build)",
   "general.ui_language": "Interface language",
+  "general.text_hotkey": "Text processing hotkey",
+  "general.text_hotkey_enable": "Enable text processing hotkey",
+  "general.text_hotkey_desc": "Select text and press shortcut to reformulate/translate in place",
+
+  // Overlay
+  "overlay.reformulation": "Reformulation",
+  "overlay.translation": "Translation",
 
   // Engines Tab
   "engines.loaded": "Loaded",
@@ -47,6 +54,24 @@ const en: Record<string, string> = {
   "engines.activate": "Activate",
   "engines.delete": "Delete",
   "engines.loading": "Loading engines...",
+  "engines.name.whisper": "Voice recognition: Whisper",
+  "engines.name.llm": "Text post-processing: Local LLM",
+  "engines.whisper_desc": "Choose the voice recognition model. The more advanced the model, the more accurate and intelligent it will be, but processing will take a bit longer.",
+  "engines.llm_desc": "Choose the intelligent processing model for reformulation and translation. The more advanced the model, the more accurate and intelligent it will be, but processing will take a bit longer.",
+
+  // Model descriptions
+  "model.name.whisper-base": "Whisper Base (fastest)",
+  "model.name.whisper-small": "Whisper Small (best speed/accuracy trade-off)",
+  "model.desc.whisper-base": "Fast, good for short dictation. ~1s processing.",
+  "model.desc.whisper-small": "Better accuracy, reasonable speed. ~2-3s processing.",
+  "model.desc.whisper-medium": "High accuracy. ~5-8s processing.",
+  "model.desc.whisper-large-v3": "Best accuracy. ~10-15s processing. Requires 4GB+ RAM.",
+  "model.desc.gemma-3-1b-q4": "Google Gemma 3. 140+ languages, 128K context, very fast on CPU.",
+  "model.desc.qwen3-1.7b-q4": "100+ languages, thinking mode. Fast and multilingual.",
+  "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4) (best speed/accuracy trade-off)",
+  "model.desc.phi-4-mini-q4": "Microsoft Phi-4. 23 languages, strong reasoning.",
+  "model.desc.qwen3-4b-q4": "100+ languages, strong reasoning. Best quality all-rounder.",
+  "model.desc.gemma-3-4b-q4": "Google Gemma 3. 140+ languages, best instruction following.",
 
   // Post-Processing Tab
   "pp.text_cleanup": "Text cleanup",
@@ -69,7 +94,7 @@ const en: Record<string, string> = {
   "pp.local_info": "Local LLM uses a GGUF model running on CPU via llama.cpp. Download the model from the Engines tab.",
   "pp.reformulation": "Reformulation",
   "pp.enable_reformulation": "Enable reformulation",
-  "pp.enable_reformulation_desc": "Use LLM to reformulate transcribed text",
+  "pp.enable_reformulation_desc": "Use LLM to reformulate transcribed text. The longer the context, the more relevant the reformulation will be",
   "pp.requires_llm": "Requires an active LLM backend (configure above)",
   "pp.style": "Style",
   "pp.style_cleaned": "Cleaned (fix grammar)",

@@ -46,10 +46,15 @@ pub fn save_config(config: &AppConfig) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Emits `settings-updated` so the frontend re-fetches config / status.
+pub fn notify_settings_updated(app_handle: &tauri::AppHandle) {
+    use tauri::Emitter;
+    let _ = app_handle.emit(crate::events::EVENT_SETTINGS_UPDATED, ());
+}
+
 /// Saves config to disk and emits `settings-updated` so the frontend re-fetches.
 pub fn save_and_notify(config: &AppConfig, app_handle: &tauri::AppHandle) -> Result<(), AppError> {
-    use tauri::Emitter;
     save_config(config)?;
-    app_handle.emit(crate::events::EVENT_SETTINGS_UPDATED, ()).ok();
+    notify_settings_updated(app_handle);
     Ok(())
 }

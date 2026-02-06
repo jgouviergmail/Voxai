@@ -1,23 +1,27 @@
-import { createSignal, createEffect, onMount, Show, For } from "solid-js";
+import { createSignal, createEffect, onMount, onCleanup, Show, For } from "solid-js";
 import type { AppConfig, CustomPrompt, LanguageInfo, LlmStatus, PipelineTestResult, PromptPreview } from "../../types";
 import {
   checkLlmStatus,
   getPromptPreview,
+  listOllamaModels,
   listSupportedLanguages,
   testReformulation,
   testTranslation,
   testTextPipeline,
 } from "../../lib/commands";
+import { onSettingsUpdated } from "../../lib/events";
 import Toggle from "../ui/Toggle";
 import Select from "../ui/Select";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { appStore } from "../../lib/stores";
 import { i18n } from "../../lib/i18n";
+import { BUILTIN_STYLES } from "../../lib/constants";
 
 export default function PostProcessingTab() {
   const [llmStatus, setLlmStatus] = createSignal<LlmStatus | null>(null);
   const [languages, setLanguages] = createSignal<LanguageInfo[]>([]);
+  const [ollamaModels, setOllamaModels] = createSignal<string[]>([]);
   const [testInput, setTestInput] = createSignal("");
   const [testOutput, setTestOutput] = createSignal("");
   const [pipelineResult, setPipelineResult] = createSignal<PipelineTestResult | null>(null);
@@ -41,6 +45,14 @@ export default function PostProcessingTab() {
     }
   };
 
+  const loadOllamaModels = async () => {
+    try {
+      setOllamaModels(await listOllamaModels());
+    } catch {
+      setOllamaModels([]);
+    }
+  };
+
   onMount(async () => {
     checkStatus();
     try {
@@ -48,6 +60,10 @@ export default function PostProcessingTab() {
     } catch (e) {
       console.error("Failed to load languages:", e);
     }
+    const unlistenSettings = await onSettingsUpdated(() => {
+      checkStatus();
+    });
+    onCleanup(() => unlistenSettings());
   });
 
   const save = (updater: (c: AppConfig) => void) => appStore.saveSetting(updater);
@@ -67,9 +83,16 @@ export default function PostProcessingTab() {
 
   const customPrompts = () => config().postprocessing.custom_prompts ?? [];
 
-  const builtinStyles = ["Cleaned", "Professional", "Casual", "Concise", "Simplified", "Structured"];
+  const isBuiltinStyle = () => (BUILTIN_STYLES as readonly string[]).includes(currentStyle());
 
-  const isBuiltinStyle = () => builtinStyles.includes(currentStyle());
+  // Load Ollama models when backend is Ollama and connected
+  createEffect(() => {
+    if (config().llm.active_backend === "Ollama" && llmStatus()?.available) {
+      loadOllamaModels();
+    } else {
+      setOllamaModels([]);
+    }
+  });
 
   // Load prompt preview when style changes
   createEffect(async () => {
@@ -262,7 +285,6 @@ export default function PostProcessingTab() {
                 c.postprocessing.translation.enabled = false;
               }
             });
-            setTimeout(checkStatus, 500);
           }}
         />
 
@@ -284,12 +306,24 @@ export default function PostProcessingTab() {
               }
             />
           </div>
-          <Input
-            label={i18n.t("pp.model")}
-            value={config().llm.ollama.model}
-            placeholder="mistral"
-            onChange={(v) => save((c) => (c.llm.ollama.model = v))}
-          />
+          <Show
+            when={ollamaModels().length > 0}
+            fallback={
+              <Input
+                label={i18n.t("pp.model")}
+                value={config().llm.ollama.model}
+                placeholder="mistral"
+                onChange={(v) => save((c) => (c.llm.ollama.model = v))}
+              />
+            }
+          >
+            <Select
+              label={i18n.t("pp.model")}
+              value={config().llm.ollama.model}
+              options={ollamaModels().map((m) => ({ value: m, label: m }))}
+              onChange={(v) => save((c) => (c.llm.ollama.model = v))}
+            />
+          </Show>
         </Show>
 
         <Show when={config().llm.active_backend === "Local"}>
@@ -298,6 +332,44 @@ export default function PostProcessingTab() {
               {i18n.t("pp.local_info")}
             </p>
           </div>
+        </Show>
+      </div>
+
+      {/* Translation */}
+      <div class={`border-t ${borderClass()} pt-4`}>
+        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
+          {i18n.t("pp.translation")}
+        </h3>
+        <Toggle
+          label={i18n.t("pp.enable_translation")}
+          description={i18n.t("pp.enable_translation_desc")}
+          checked={config().postprocessing.translation.enabled}
+          disabled={!llmAvailable()}
+          onChange={(v) =>
+            save((c) => (c.postprocessing.translation.enabled = v))
+          }
+        />
+        <Show when={!llmAvailable()}>
+          <p class={`text-xs rounded px-2 py-1 mt-1 border ${warningBg()}`}>
+            {i18n.t("pp.requires_llm")}
+          </p>
+        </Show>
+        <Show when={config().postprocessing.translation.enabled}>
+          <Select
+            label={i18n.t("pp.target_language")}
+            value={config().postprocessing.translation.target_language}
+            options={languages()
+              .filter((l) => l.code !== "")
+              .map((l) => ({
+                value: l.code,
+                label: l.name,
+              }))}
+            onChange={(v) =>
+              save(
+                (c) => (c.postprocessing.translation.target_language = v),
+              )
+            }
+          />
         </Show>
       </div>
 
@@ -321,94 +393,69 @@ export default function PostProcessingTab() {
           </p>
         </Show>
         <Show when={config().postprocessing.reformulation.enabled}>
-          <Select
-            label={i18n.t("pp.style")}
-            value={currentStyleKey()}
-            options={[
-              { value: "Cleaned", label: i18n.t("pp.style_cleaned") },
-              { value: "Professional", label: i18n.t("pp.style_professional") },
-              { value: "Casual", label: i18n.t("pp.style_casual") },
-              { value: "Concise", label: i18n.t("pp.style_concise") },
-              { value: "Simplified", label: i18n.t("pp.style_simplified") },
-              { value: "Structured", label: i18n.t("pp.style_structured") },
-              ...customPrompts().map((p) => ({ value: p.id, label: p.name })),
-            ]}
-            onChange={(v) => {
-              const isBuiltin = builtinStyles.includes(v);
-              save((c) => {
-                c.postprocessing.reformulation.style = isBuiltin
-                  ? (v as AppConfig["postprocessing"]["reformulation"]["style"])
-                  : { Custom: v };
-              });
-            }}
-          />
-
-          {/* Prompt viewer/editor */}
-          <Show when={promptPreview()}>
-            <div class={`${cardBg()} rounded-lg p-3 mt-2 space-y-2`}>
-              <div class="flex items-center justify-between">
-                <span class={`text-xs font-semibold uppercase tracking-wider ${headingColor()}`}>
-                  {i18n.t("pp.prompt")}
-                </span>
-                <Show when={isBuiltinStyle()}>
-                  <div class="flex gap-1">
-                    <Show when={promptPreview()?.is_modified}>
-                      <Button size="sm" variant="secondary" onClick={handleResetPrompt}>
-                        {i18n.t("pp.reset_default")}
-                      </Button>
-                    </Show>
-                    <Button
-                      size="sm"
-                      onClick={handleSavePromptOverride}
-                      disabled={
-                        editSystem() === promptPreview()?.system &&
-                        editInstruction() === promptPreview()?.instruction
-                      }
+          {/* Style radio list — full row is clickable */}
+          <div class="py-2">
+            <label class="block text-sm font-medium mb-1">{i18n.t("pp.style")}</label>
+            <div class={`rounded-lg border overflow-hidden ${
+              isDark() ? "border-gray-700" : "border-gray-200"
+            }`}>
+              <For each={[
+                { value: "Cleaned", label: i18n.t("pp.style_cleaned") },
+                { value: "Professional", label: i18n.t("pp.style_professional") },
+                { value: "Casual", label: i18n.t("pp.style_casual") },
+                { value: "Concise", label: i18n.t("pp.style_concise") },
+                { value: "Simplified", label: i18n.t("pp.style_simplified") },
+                { value: "Structured", label: i18n.t("pp.style_structured") },
+                ...customPrompts().map((p) => ({ value: p.id, label: p.name })),
+              ]}>
+                {(opt) => {
+                  const isActive = () => currentStyleKey() === opt.value;
+                  const isBuiltin = (BUILTIN_STYLES as readonly string[]).includes(opt.value);
+                  return (
+                    <button
+                      type="button"
+                      class={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 border-b last:border-b-0 transition-colors cursor-pointer ${
+                        isDark()
+                          ? `border-gray-700 hover:bg-gray-700 ${isActive() ? "bg-gray-700" : ""}`
+                          : `border-gray-100 hover:bg-gray-100 ${isActive() ? "bg-blue-50" : ""}`
+                      }`}
+                      onClick={() => {
+                        save((c) => {
+                          c.postprocessing.reformulation.style = isBuiltin
+                            ? (opt.value as AppConfig["postprocessing"]["reformulation"]["style"])
+                            : { Custom: opt.value };
+                        });
+                      }}
                     >
-                      {i18n.t("pp.save_changes")}
-                    </Button>
-                  </div>
-                </Show>
+                      <span class={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+                        isActive()
+                          ? "border-blue-500 bg-blue-500"
+                          : isDark() ? "border-gray-500" : "border-gray-400"
+                      }`} />
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                }}
+              </For>
+            </div>
+          </div>
+
+          {/* Prompt viewer — only shown for custom styles */}
+          <Show when={!isBuiltinStyle() && promptPreview()}>
+            <div class={`${cardBg()} rounded-lg p-3 mt-2 space-y-2`}>
+              <span class={`text-xs font-semibold uppercase tracking-wider ${headingColor()}`}>
+                {i18n.t("pp.prompt")}
+              </span>
+              <div class="space-y-1 text-sm">
+                <div>
+                  <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.system_prompt")}</span>
+                  <p class="mt-0.5">{promptPreview()?.system}</p>
+                </div>
+                <div>
+                  <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.instruction")}</span>
+                  <p class="mt-0.5">{promptPreview()?.instruction}</p>
+                </div>
               </div>
-              <Show when={isBuiltinStyle()} fallback={
-                <div class="space-y-1 text-sm">
-                  <div>
-                    <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.system_prompt")}</span>
-                    <p class="mt-0.5">{promptPreview()?.system}</p>
-                  </div>
-                  <div>
-                    <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.instruction")}</span>
-                    <p class="mt-0.5">{promptPreview()?.instruction}</p>
-                  </div>
-                </div>
-              }>
-                <div class="space-y-2">
-                  <div>
-                    <label class="block text-xs font-medium mb-1">{i18n.t("pp.system_prompt")}</label>
-                    <textarea
-                      class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
-                        isDark()
-                          ? "bg-gray-900 border-gray-700 text-gray-100"
-                          : "bg-white border-gray-300 text-gray-900"
-                      }`}
-                      value={editSystem()}
-                      onInput={(e) => setEditSystem(e.currentTarget.value)}
-                    />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-medium mb-1">{i18n.t("pp.instruction")}</label>
-                    <textarea
-                      class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
-                        isDark()
-                          ? "bg-gray-900 border-gray-700 text-gray-100"
-                          : "bg-white border-gray-300 text-gray-900"
-                      }`}
-                      value={editInstruction()}
-                      onInput={(e) => setEditInstruction(e.currentTarget.value)}
-                    />
-                  </div>
-                </div>
-              </Show>
             </div>
           </Show>
 
@@ -495,42 +542,6 @@ export default function PostProcessingTab() {
               <p class={`text-xs ${headingColor()}`}>{i18n.t("pp.no_custom")}</p>
             </Show>
           </div>
-        </Show>
-      </div>
-
-      {/* Translation */}
-      <div class={`border-t ${borderClass()} pt-4`}>
-        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          {i18n.t("pp.translation")}
-        </h3>
-        <Toggle
-          label={i18n.t("pp.enable_translation")}
-          description={i18n.t("pp.enable_translation_desc")}
-          checked={config().postprocessing.translation.enabled}
-          disabled={!llmAvailable()}
-          onChange={(v) =>
-            save((c) => (c.postprocessing.translation.enabled = v))
-          }
-        />
-        <Show when={!llmAvailable()}>
-          <p class={`text-xs rounded px-2 py-1 mt-1 border ${warningBg()}`}>
-            {i18n.t("pp.requires_llm")}
-          </p>
-        </Show>
-        <Show when={config().postprocessing.translation.enabled}>
-          <Select
-            label={i18n.t("pp.target_language")}
-            value={config().postprocessing.translation.target_language}
-            options={languages().map((l) => ({
-              value: l.code,
-              label: l.name,
-            }))}
-            onChange={(v) =>
-              save(
-                (c) => (c.postprocessing.translation.target_language = v),
-              )
-            }
-          />
         </Show>
       </div>
 

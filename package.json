@@ -1,13 +1,19 @@
 {
   "name": "voxai",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:worker": "node scripts/prepare-worker.mjs",
+    "build:worker:cuda": "node scripts/prepare-worker.mjs --cuda",
+    "build:windows": "npm run build:worker && npx tauri build",
+    "build:windows:cuda": "node scripts/prepare-worker.mjs --cuda --tauri",
+    "dev:worker": "cargo build --manifest-path src-tauri/Cargo.toml -p voxai-llm-worker",
+    "dev:full": "npm run dev:worker && npx tauri dev"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

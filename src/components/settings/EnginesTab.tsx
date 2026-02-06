@@ -91,21 +91,30 @@ export default function EnginesTab() {
       <For each={engines()}>
         {(engine) => (
           <div>
-            <div class="flex items-center gap-2 mb-3">
-              <h3 class="text-sm font-semibold">{engine.name}</h3>
-              <span
-                class={`text-xs px-2 py-0.5 rounded-full ${
-                  engine.loaded
-                    ? isDark()
-                      ? "bg-green-900/50 text-green-400"
-                      : "bg-green-100 text-green-700"
-                    : isDark()
-                      ? "bg-gray-700 text-gray-500"
-                      : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                {engine.loaded ? i18n.t("engines.loaded") : i18n.t("engines.not_loaded")}
-              </span>
+            <div class="mb-3">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-semibold">{(() => {
+                          const nameKey = `engines.name.${engine.id}`;
+                          const translated = i18n.t(nameKey);
+                          return translated !== nameKey ? translated : engine.name;
+                        })()}</h3>
+                <span
+                  class={`text-xs px-2 py-0.5 rounded-full ${
+                    engine.loaded
+                      ? isDark()
+                        ? "bg-green-900/50 text-green-400"
+                        : "bg-green-100 text-green-700"
+                      : isDark()
+                        ? "bg-gray-700 text-gray-500"
+                        : "bg-gray-200 text-gray-500"
+                  }`}
+                >
+                  {engine.loaded ? i18n.t("engines.loaded") : i18n.t("engines.not_loaded")}
+                </span>
+              </div>
+              <p class={`text-xs mt-1 ${isDark() ? "text-gray-400" : "text-gray-500"}`}>
+                {i18n.t(engine.name.toLowerCase().includes("whisper") ? "engines.whisper_desc" : "engines.llm_desc")}
+              </p>
             </div>
 
             <div class="space-y-2">
@@ -116,7 +125,11 @@ export default function EnginesTab() {
                   >
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
-                        <span class="text-sm font-medium">{model.name}</span>
+                        <span class="text-sm font-medium">{(() => {
+                          const nameKey = `model.name.${model.id}`;
+                          const translated = i18n.t(nameKey);
+                          return translated !== nameKey ? translated : model.name;
+                        })()}</span>
                         <Show when={model.active}>
                           <span
                             class={`text-xs px-2 py-0.5 rounded-full ${
@@ -130,7 +143,11 @@ export default function EnginesTab() {
                         </Show>
                       </div>
                       <p class="text-xs text-gray-500 mt-0.5">
-                        {model.description} &middot; {model.size_mb} MB
+                        {(() => {
+                          const key = `model.desc.${model.id}`;
+                          const translated = i18n.t(key);
+                          return translated !== key ? translated : model.description;
+                        })()} &middot; {model.size_mb} MB
                       </p>
 
                       <Show

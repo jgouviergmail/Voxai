@@ -1,3 +1,4 @@
+use ollama_rs::Ollama;
 use tauri::State;
 
 use crate::app_state::AppState;
@@ -49,7 +50,8 @@ pub fn list_engines(state: State<'_, AppState>) -> Result<Vec<EngineInfo>, AppEr
             size_mb: def.size_mb,
             description: def.description.to_string(),
             downloaded: downloaded.contains(&def.id.to_string()),
-            active: config.llm.local.model_id.as_deref() == Some(def.id),
+            active: config.llm.active_backend == crate::config::schema::LlmBackendType::Local
+                && config.llm.local.model_id.as_deref() == Some(def.id),
         })
         .collect();
 
@@ -101,14 +103,15 @@ pub async fn set_active_model(
     };
 
     if model_def.engine == "llm" {
-        // LLM model — update local config and rebuild backend
+        // LLM model — update config, rebuild backend, THEN notify frontend
         {
             let mut config = state
                 .config
                 .write()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             config.llm.local.model_id = Some(model_id.clone());
-            persistence::save_and_notify(&config, &state.app_handle)?;
+            config.llm.active_backend = crate::config::schema::LlmBackendType::Local;
+            persistence::save_config(&config)?;
         }
 
         let new_backend = {
@@ -123,11 +126,16 @@ pub async fn set_active_model(
             crate::build_local_llm_backend(&config, &cache)
         };
 
-        let mut backend = state
-            .llm_backend
-            .write()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        *backend = new_backend;
+        {
+            let mut backend = state
+                .llm_backend
+                .write()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            *backend = new_backend;
+        }
+
+        // Notify frontend AFTER backend is ready — avoids race with checkLlmStatus
+        persistence::notify_settings_updated(&state.app_handle);
     } else {
         // STT model
         {
@@ -150,6 +158,23 @@ pub async fn set_active_model(
 
     log::info!("Active model set to {}", model_id);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn list_ollama_models(state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
+    let (host, port) = {
+        let config = state
+            .config
+            .read()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        (config.llm.ollama.host.clone(), config.llm.ollama.port)
+    };
+    let client = Ollama::new(format!("http://{}", host), port);
+    let models = client
+        .list_local_models()
+        .await
+        .map_err(|e| AppError::Llm(format!("Failed to list Ollama models: {}", e)))?;
+    Ok(models.into_iter().map(|m| m.name).collect())
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -184,6 +209,12 @@ const PRIORITY_LANGUAGES: &[&str] = &[
 
 #[tauri::command]
 pub fn list_supported_languages() -> Vec<LanguageInfo> {
+    // Auto-detect option first
+    let mut result = vec![LanguageInfo {
+        code: String::new(),
+        name: "Auto-detect".to_string(),
+    }];
+
     // Priority languages first, then rest alphabetically
     let mut priority: Vec<LanguageInfo> = Vec::new();
     let mut rest: Vec<LanguageInfo> = Vec::new();
@@ -209,6 +240,7 @@ pub fn list_supported_languages() -> Vec<LanguageInfo> {
     });
     // Rest already alphabetical from WHISPER_LANGUAGES (sorted by name)
 
-    priority.extend(rest);
-    priority
+    result.extend(priority);
+    result.extend(rest);
+    result
 }

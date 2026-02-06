@@ -16,11 +16,17 @@ pub struct GeneralConfig {
     pub auto_start: bool,
     pub auto_enter: bool,
     pub clipboard_restore: bool,
-    pub language: String,
+    /// STT language. None = auto-detect.
+    #[serde(default)]
+    pub language: Option<String>,
     #[serde(default)]
     pub gpu_acceleration: bool,
     #[serde(default = "default_ui_language")]
     pub ui_language: String,
+    /// Hotkey for text processing (select → reformulate/translate → replace).
+    /// None = feature disabled.
+    #[serde(default)]
+    pub text_hotkey: Option<HotkeyConfig>,
 }
 
 fn default_ui_language() -> String {
@@ -139,9 +145,10 @@ impl Default for AppConfig {
                 auto_start: false,
                 auto_enter: false,
                 clipboard_restore: true,
-                language: "fr".to_string(),
+                language: None,
                 gpu_acceleration: false,
                 ui_language: "en".to_string(),
+                text_hotkey: None,
             },
             stt: SttConfig {
                 active_engine: "whisper".to_string(),

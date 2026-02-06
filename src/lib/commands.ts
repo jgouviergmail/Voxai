@@ -22,6 +22,22 @@ export const stopRecording = () => invoke("stop_recording");
 
 // Settings
 export const getSettings = () => invoke<AppConfig>("get_settings");
+
+/**
+ * Retry getSettings with backoff — handles the race condition where
+ * the WebView JS calls invoke() before setup has called app.manage().
+ */
+export async function getSettingsWithRetry(maxAttempts = 10): Promise<AppConfig> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await getSettings();
+    } catch (e) {
+      if (i === maxAttempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, 100 * (i + 1)));
+    }
+  }
+  throw new Error("unreachable");
+}
 export const updateSettings = (config: AppConfig) =>
   invoke("update_settings", { config });
 
@@ -48,6 +64,8 @@ export const setActiveModel = (modelId: string) =>
   invoke("set_active_model", { modelId });
 export const listSupportedLanguages = () =>
   invoke<LanguageInfo[]>("list_supported_languages");
+export const listOllamaModels = () =>
+  invoke<string[]>("list_ollama_models");
 
 // Substitutions
 export const getSubstitutions = () =>

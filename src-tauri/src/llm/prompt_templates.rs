@@ -6,32 +6,82 @@ pub struct Prompt {
     pub user: String,
 }
 
-/// Built-in prompt defaults (system, instruction) for each style.
+/// Built-in prompt defaults (style_description, instruction) for each style.
+/// Style descriptions focus ONLY on what makes each style unique.
+/// Shared constraints (language, person, output, profanity) are added by build_reformulation_prompt.
 fn builtin_prompt(style: &str) -> Option<(&'static str, &'static str)> {
     match style {
+        // Cleaned: full grammar reconstruction for spoken/dictated text.
+        // Must fix broken sentence structures, not just typos.
         "Cleaned" => Some((
-            "You are a text cleanup assistant. Fix grammar, punctuation, and minor errors while preserving the original meaning and tone. Do not add or remove information.",
-            "Clean up the following dictated text. Fix any grammar or punctuation errors, but keep the original meaning intact:",
+            "You are a grammar correction assistant for dictated text.\n\
+             Task: rewrite the text with perfect grammar and sentence structure.\n\
+             Rules:\n\
+             - Fix ALL grammar, spelling, punctuation, and syntax errors.\n\
+             - Reconstruct malformed or spoken-style sentences into proper written form.\n\
+             - Example: \"C'est qui qui est venu hier?\" -> \"Qui est venu hier ?\"\n\
+             - Example: \"me and him we went\" -> \"He and I went\"\n\
+             - Example: \"the thing that I told you about it\" -> \"the thing I told you about\"\n\
+             - Keep the same tone (formal stays formal, casual stays casual).\n\
+             - Keep the same vocabulary where grammar allows it.\n\
+             - Do NOT change the meaning, add new ideas, or remove information.",
+            "Correct all grammar and sentence structure errors in this text:",
         )),
         "Professional" => Some((
-            "You are a professional writing assistant. Reformulate text into clear, formal, business-appropriate language.",
-            "Reformulate the following text in a professional, formal tone suitable for business communication:",
+            "You are a professional writing assistant.\n\
+             Task: rewrite the text in a formal, business-appropriate tone.\n\
+             Rules:\n\
+             - Use polished vocabulary, proper grammar, and formal phrasing.\n\
+             - Replace slang, casual expressions, and colloquialisms with professional equivalents.\n\
+             - The result must read like a business email or official document.\n\
+             - Fix any grammar or spelling errors along the way.\n\
+             - Do NOT change the meaning, add new ideas, or remove information.",
+            "Reformulate this text in a formal, professional tone:",
         )),
         "Casual" => Some((
-            "You are a friendly writing assistant. Reformulate text into natural, conversational language.",
-            "Reformulate the following text in a casual, friendly tone:",
+            "You are a friendly writing assistant.\n\
+             Task: rewrite the text in a relaxed, conversational tone.\n\
+             Rules:\n\
+             - Use everyday words, contractions, and a warm friendly voice.\n\
+             - Replace stiff or formal phrasing with natural spoken language.\n\
+             - The result must sound like talking to a friend.\n\
+             - Fix any grammar or spelling errors along the way.\n\
+             - Do NOT change the meaning, add new ideas, or remove information.",
+            "Reformulate this text in a casual, friendly tone:",
         )),
         "Concise" => Some((
-            "You are a concise writing assistant. Shorten text while preserving all key information. Remove filler words and redundancy.",
-            "Make the following text more concise while keeping all important information:",
+            "You are a concise writing assistant.\n\
+             Task: shorten the text while keeping all key information.\n\
+             Rules:\n\
+             - Remove filler words, redundancy, and unnecessary detail.\n\
+             - Merge short sentences when possible. Be direct and brief.\n\
+             - The result must be significantly shorter than the input.\n\
+             - Fix any grammar or spelling errors along the way.\n\
+             - Do NOT remove important facts or change the meaning.",
+            "Make this text shorter and more direct:",
         )),
         "Simplified" => Some((
-            "You are a plain language assistant. Simplify text to be easily understood by everyone. Use short sentences and common words.",
-            "Simplify the following text for easy reading:",
+            "You are a plain language assistant.\n\
+             Task: simplify the text so anyone can understand it.\n\
+             Rules:\n\
+             - Use short sentences and simple common words.\n\
+             - Replace jargon and complex terms with easy alternatives.\n\
+             - Break long sentences into shorter ones.\n\
+             - The result must be understandable by a child.\n\
+             - Do NOT change the meaning, add new ideas, or remove information.",
+            "Simplify this text:",
         )),
         "Structured" => Some((
-            "You are a structured writing assistant. Organize text into clear paragraphs or bullet points when appropriate.",
-            "Restructure the following text for clarity, using paragraphs or bullet points if appropriate:",
+            "You are a structured writing assistant.\n\
+             Task: reorganize the text into clear paragraphs or bullet points.\n\
+             Rules:\n\
+             - Group related ideas together.\n\
+             - Use bullet points (- ) for lists of items.\n\
+             - Add clear paragraph breaks between topics.\n\
+             - The result must be visually organized and easy to scan.\n\
+             - Fix any grammar or spelling errors along the way.\n\
+             - Do NOT change the meaning, add new ideas, or remove information.",
+            "Restructure this text for clarity:",
         )),
         _ => None,
     }
@@ -74,12 +124,53 @@ pub fn build_reformulation_prompt(
     style: &ReformulationStyle,
     custom_prompts: &[CustomPrompt],
     overrides: &HashMap<String, PromptOverride>,
+    source_language: Option<&str>,
 ) -> Prompt {
-    let (system, instruction) = resolve_prompt(style, custom_prompts, overrides);
-    Prompt {
-        system,
-        user: format!("{}\n\n{}", instruction, text),
-    }
+    let (style_system, instruction) = resolve_prompt(style, custom_prompts, overrides);
+
+    // === SANDWICH STRUCTURE ===
+    // TOP: language constraint (primacy effect — small LLMs attend most to first lines)
+    let lang_name = source_language
+        .and_then(|c| crate::stt::whisper::language_name_from_code(c))
+        .or(source_language);
+
+    let lang_top = match lang_name {
+        Some(name) => format!(
+            "LANGUAGE: You MUST write in {} only. Never use another language.\n\n",
+            name
+        ),
+        None => "LANGUAGE: Write in the SAME language as the input. Never switch language.\n\n"
+            .to_string(),
+    };
+
+    // MIDDLE: style-specific description (from builtin or user override)
+
+    // BOTTOM: critical constraints (recency effect — small LLMs also attend to last lines)
+    let lang_bottom = match lang_name {
+        Some(name) => format!("- LANGUAGE: Your output MUST be in {}.", name),
+        None => "- LANGUAGE: Output in the same language as the input.".to_string(),
+    };
+
+    let constraints = format!(
+        "\n\n\
+         CRITICAL RULES (you MUST follow ALL of these):\n\
+         1. PERSON: Keep the exact same grammatical person. \
+         \"I/je\" stays \"I/je\". \"you/tu/vous\" stays \"you/tu/vous\". \
+         NEVER switch to third person or impersonal form.\n\
+         2. MEANING: Keep the exact same meaning, facts, and intent. Do not add or remove information.\n\
+         3. PROFANITY: Replace any swear words, insults, vulgarities, or offensive language \
+         with neutral, polite alternatives that preserve the intended meaning.\n\
+         4. OUTPUT: Print ONLY the reformulated text. No explanation, no preamble, no label, no quotes, no guillemets.\n\
+         5. {}",
+        lang_bottom
+    );
+
+    let system = format!("{}{}{}", lang_top, style_system, constraints);
+
+    // Guillemets to clearly delineate input text from instruction
+    let user = format!("{}\n\n\u{ab}{}\u{bb}", instruction, text);
+
+    Prompt { system, user }
 }
 
 /// Maps ISO 639-1 language codes to full language names for clearer LLM prompts.
@@ -93,7 +184,8 @@ pub fn build_translation_prompt(text: &str, target_language: &str) -> Prompt {
     Prompt {
         system: format!(
             "You are a professional translator. Translate the given text to {}. \
-             Preserve the original tone and meaning. Output ONLY the translated text, nothing else.",
+             Preserve the original tone and meaning. Output ONLY the translated text, \
+             nothing else — no explanations, no preamble, no quotation marks.",
             lang
         ),
         user: text.to_string(),
@@ -111,9 +203,76 @@ mod tests {
             &ReformulationStyle::Cleaned,
             &[],
             &HashMap::new(),
+            None,
         );
-        assert!(prompt.system.contains("cleanup"));
-        assert!(prompt.user.contains("hello world"));
+        // Sandwich: language at top
+        assert!(prompt.system.starts_with("LANGUAGE:"));
+        // Style in middle — grammar correction with sentence reconstruction
+        assert!(prompt.system.contains("grammar correction"));
+        assert!(prompt.system.contains("Reconstruct malformed"));
+        // Constraints at bottom
+        assert!(prompt.system.contains("PERSON:"));
+        assert!(prompt.system.contains("PROFANITY:"));
+        // User has guillemets
+        assert!(prompt.user.contains("\u{ab}hello world\u{bb}"));
+    }
+
+    #[test]
+    fn test_reformulation_prompt_professional() {
+        let prompt = build_reformulation_prompt(
+            "hey what's up",
+            &ReformulationStyle::Professional,
+            &[],
+            &HashMap::new(),
+            None,
+        );
+        assert!(prompt.system.contains("formal"));
+        assert!(prompt.system.contains("business"));
+        assert!(prompt.system.contains("PERSON:"));
+        assert!(prompt.system.contains("PROFANITY:"));
+    }
+
+    #[test]
+    fn test_reformulation_prompt_with_language() {
+        let prompt = build_reformulation_prompt(
+            "bonjour le monde",
+            &ReformulationStyle::Cleaned,
+            &[],
+            &HashMap::new(),
+            Some("fr"),
+        );
+        // Language at TOP (primacy)
+        assert!(prompt.system.starts_with("LANGUAGE: You MUST write in French"));
+        // Language at BOTTOM (recency)
+        assert!(prompt.system.contains("output MUST be in French"));
+    }
+
+    #[test]
+    fn test_critical_rules_in_all_styles() {
+        for style in &[
+            ReformulationStyle::Cleaned,
+            ReformulationStyle::Professional,
+            ReformulationStyle::Casual,
+            ReformulationStyle::Concise,
+            ReformulationStyle::Simplified,
+            ReformulationStyle::Structured,
+        ] {
+            let prompt = build_reformulation_prompt(
+                "test", style, &[], &HashMap::new(), None,
+            );
+            assert!(
+                prompt.system.contains("PERSON:"),
+                "Style {:?} missing person preservation", style
+            );
+            assert!(
+                prompt.system.contains("PROFANITY:"),
+                "Style {:?} missing profanity filter", style
+            );
+            assert!(
+                prompt.system.contains("MEANING:"),
+                "Style {:?} missing meaning preservation", style
+            );
+        }
     }
 
     #[test]
@@ -143,6 +302,7 @@ mod tests {
             &ReformulationStyle::Custom("Make it rhyme".to_string()),
             &[],
             &HashMap::new(),
+            None,
         );
         assert!(prompt.user.contains("Make it rhyme"));
     }

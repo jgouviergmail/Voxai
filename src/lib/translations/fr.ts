@@ -24,8 +24,8 @@ const fr: Record<string, string> = {
   "general.auto_enter_desc": "Appuyer sur Entree apres l'injection du texte",
   "general.restore_clipboard": "Restaurer le presse-papiers",
   "general.restore_clipboard_desc": "Restaurer le contenu precedent du presse-papiers apres le collage",
-  "general.hotkey": "Raccourci clavier",
-  "general.push_to_talk": "Appui pour parler :",
+  "general.hotkey": "Raccourcis saisie vocale",
+  "general.push_to_talk": "Declencher la reconnaissance vocale :",
   "general.press_shortcut": "Appuyez sur votre raccourci...",
   "general.cancel": "Annuler",
   "general.record": "Enregistrer",
@@ -36,6 +36,13 @@ const fr: Record<string, string> = {
   "general.enable_gpu": "Activer l'acceleration GPU",
   "general.enable_gpu_desc": "Utiliser le GPU NVIDIA pour l'inference LLM locale (necessite la compilation CUDA)",
   "general.ui_language": "Langue de l'interface",
+  "general.text_hotkey": "Raccourci traitement texte",
+  "general.text_hotkey_enable": "Activer le raccourci traitement texte",
+  "general.text_hotkey_desc": "Selectionnez du texte et appuyez sur le raccourci pour reformuler/traduire sur place",
+
+  // Overlay
+  "overlay.reformulation": "Reformulation",
+  "overlay.translation": "Traduction",
 
   // Onglet Moteurs
   "engines.loaded": "Charge",
@@ -47,6 +54,24 @@ const fr: Record<string, string> = {
   "engines.activate": "Activer",
   "engines.delete": "Supprimer",
   "engines.loading": "Chargement des moteurs...",
+  "engines.name.whisper": "Reconnaissance vocale : Whisper",
+  "engines.name.llm": "Post-traitement du texte : Local LLM",
+  "engines.whisper_desc": "Choisir le modele de reconnaissance vocale. Plus il sera evolue plus il sera precis et intelligent mais le traitement sera un peu plus long.",
+  "engines.llm_desc": "Choisir le modele de traitement intelligent pour la reformulation et la traduction. Plus il sera evolue plus il sera precis et intelligent mais le traitement sera un peu plus long.",
+
+  // Descriptions des modeles
+  "model.name.whisper-base": "Whisper Base (le plus rapide)",
+  "model.name.whisper-small": "Whisper Small (le meilleur compromis vitesse/fiabilite)",
+  "model.desc.whisper-base": "Rapide, ideal pour la dictee courte. ~1s de traitement.",
+  "model.desc.whisper-small": "Meilleure precision, vitesse raisonnable. ~2-3s de traitement.",
+  "model.desc.whisper-medium": "Haute precision. ~5-8s de traitement.",
+  "model.desc.whisper-large-v3": "Meilleure precision. ~10-15s de traitement. Necessite 4 Go+ de RAM.",
+  "model.desc.gemma-3-1b-q4": "Google Gemma 3. 140+ langues, contexte 128K, tres rapide sur CPU.",
+  "model.desc.qwen3-1.7b-q4": "100+ langues, mode raisonnement. Rapide et multilingue.",
+  "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4) (le meilleur compromis vitesse/fiabilite)",
+  "model.desc.phi-4-mini-q4": "Microsoft Phi-4. 23 langues, raisonnement avance.",
+  "model.desc.qwen3-4b-q4": "100+ langues, raisonnement avance. Meilleure qualite generale.",
+  "model.desc.gemma-3-4b-q4": "Google Gemma 3. 140+ langues, meilleur suivi des instructions.",
 
   // Onglet Post-traitement
   "pp.text_cleanup": "Nettoyage du texte",
@@ -69,7 +94,7 @@ const fr: Record<string, string> = {
   "pp.local_info": "Le LLM local utilise un modele GGUF tournant sur CPU via llama.cpp. Telechargez le modele depuis l'onglet Moteurs.",
   "pp.reformulation": "Reformulation",
   "pp.enable_reformulation": "Activer la reformulation",
-  "pp.enable_reformulation_desc": "Utiliser le LLM pour reformuler le texte transcrit",
+  "pp.enable_reformulation_desc": "Utiliser le LLM pour reformuler le texte transcrit. Plus le contexte est long, plus la reformulation sera pertinente",
   "pp.requires_llm": "Necessite un backend LLM actif (configurer ci-dessus)",
   "pp.style": "Style",
   "pp.style_cleaned": "Nettoye (corriger la grammaire)",

@@ -17,7 +17,7 @@ export default function TabBar(props: TabBarProps) {
 
   return (
     <div
-      class={`flex border-b mb-4 ${
+      class={`flex border-b ${
         isDark() ? "border-gray-800" : "border-gray-200"
       }`}
     >

@@ -5,6 +5,7 @@ import { i18n } from "../../lib/i18n";
 interface PageShellProps {
   children: JSX.Element;
   statusBar?: JSX.Element;
+  tabBar?: JSX.Element;
 }
 
 export default function PageShell(props: PageShellProps) {
@@ -53,6 +54,11 @@ export default function PageShell(props: PageShellProps) {
         >
           {props.statusBar}
         </div>
+      </Show>
+
+      {/* Tab bar — fixed, not scrollable */}
+      <Show when={props.tabBar}>
+        <div class="shrink-0 px-5">{props.tabBar}</div>
       </Show>
 
       {/* Scrollable content */}

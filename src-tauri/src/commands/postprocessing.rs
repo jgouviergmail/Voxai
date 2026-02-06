@@ -20,6 +20,14 @@ pub async fn check_llm_status(state: State<'_, AppState>) -> Result<LlmStatus, A
         guard.clone()
     };
 
+    let config_backend = {
+        let config = state
+            .config
+            .read()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        config.llm.active_backend.clone()
+    };
+
     match backend {
         Some(b) => {
             let available = b.is_available().await;
@@ -29,11 +37,21 @@ pub async fn check_llm_status(state: State<'_, AppState>) -> Result<LlmStatus, A
                 backend_name: b.name().to_string(),
             })
         }
-        None => Ok(LlmStatus {
-            configured: false,
-            available: false,
-            backend_name: "None".to_string(),
-        }),
+        None => {
+            // Backend object is None — use config to report what SHOULD be active.
+            // This distinguishes "no backend configured" from "backend configured
+            // but failed to load" (e.g. worker binary missing).
+            let (configured, backend_name) = match config_backend {
+                crate::config::schema::LlmBackendType::Ollama => (true, "Ollama".to_string()),
+                crate::config::schema::LlmBackendType::Local => (true, "Local".to_string()),
+                crate::config::schema::LlmBackendType::None => (false, "None".to_string()),
+            };
+            Ok(LlmStatus {
+                configured,
+                available: false,
+                backend_name,
+            })
+        }
     }
 }
 
@@ -64,7 +82,7 @@ pub async fn test_reformulation(
             .ok_or_else(|| AppError::Llm("No LLM backend configured".to_string()))?
     };
 
-    let prompt = prompt_templates::build_reformulation_prompt(&text, &style, &custom_prompts, &overrides);
+    let prompt = prompt_templates::build_reformulation_prompt(&text, &style, &custom_prompts, &overrides, None);
     backend.generate(&prompt.user, &prompt.system).await
 }
 
@@ -155,6 +173,7 @@ pub async fn test_text_pipeline(
                     &pp_config.reformulation.style,
                     &pp_config.custom_prompts,
                     &pp_config.prompt_overrides,
+                    None,
                 );
                 match b.generate(&prompt.user, &prompt.system).await {
                     Ok(r) if !r.is_empty() => {

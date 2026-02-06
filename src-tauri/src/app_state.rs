@@ -27,6 +27,11 @@ pub struct AppState {
     pub model_cache: Arc<Mutex<ModelCache>>,
     /// Shared with keyboard_hook thread — updated live when hotkey config changes.
     pub hotkey_config: Arc<RwLock<HotkeyConfig>>,
+    /// Text processing hotkey — updated live. None = feature disabled.
+    pub text_hotkey_config: Arc<RwLock<Option<HotkeyConfig>>>,
+    /// Shared flag: true while simulating keystrokes (Ctrl+C/V via enigo).
+    /// Prevents the keyboard hook from processing simulated events.
+    pub is_simulating_keys: Arc<AtomicBool>,
     /// Cancel tokens for active model downloads. Key = model_id.
     pub active_downloads: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }

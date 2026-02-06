@@ -3,13 +3,17 @@ members = [".", "llm-worker"]
 
 [package]
 name = "voxai"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Voice-to-text dictation for Windows"
 
 [lib]
 name = "voxai_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+default = []
+cuda = ["whisper-rs/cuda"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -23,6 +27,7 @@ serde_json = "1"
 
 # Async
 async-trait = "0.1"
+tokio = { version = "1", features = ["time"] }
 
 # Error handling
 thiserror = "2"

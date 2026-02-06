@@ -15,6 +15,7 @@ use std::path::PathBuf;
 
 #[allow(deprecated)]
 use llama_cpp_2::model::{AddBos, LlamaModel, Special};
+use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -59,7 +60,12 @@ impl Response {
 
 fn format_chat(system: &str, prompt: &str, template: &str) -> String {
     match template {
-        "qwen2" | "chatml" => format!(
+        // Qwen3: use /no_think to disable <think> reasoning blocks
+        "qwen2" => format!(
+            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{} /no_think<|im_end|>\n<|im_start|>assistant\n",
+            system, prompt
+        ),
+        "chatml" => format!(
             "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
             system, prompt
         ),
@@ -75,17 +81,12 @@ fn format_chat(system: &str, prompt: &str, template: &str) -> String {
     }
 }
 
-fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &str, chat_template: &str) -> Result<String, String> {
+fn generate(ctx: &mut LlamaContext<'_>, prompt: &str, system: &str, chat_template: &str) -> Result<String, String> {
+    ctx.clear_kv_cache();
+
     let combined = format_chat(system, prompt, chat_template);
 
-    let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()));
-
-    let mut ctx = model
-        .new_context(backend, ctx_params)
-        .map_err(|e| format!("Failed to create context: {}", e))?;
-
-    let tokens = model
+    let tokens = ctx.model
         .str_to_token(&combined, AddBos::Always)
         .map_err(|e| format!("Tokenization error: {}", e))?;
 
@@ -105,10 +106,11 @@ fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &s
     ctx.decode(&mut batch)
         .map_err(|e| format!("Decode error: {}", e))?;
 
+    // Low temperature + tight sampling for faithful reformulation (minimal creativity)
     let mut sampler = LlamaSampler::chain_simple(vec![
-        LlamaSampler::temp(0.3),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.95, 1),
+        LlamaSampler::temp(0.1),
+        LlamaSampler::top_k(20),
+        LlamaSampler::top_p(0.9, 1),
         LlamaSampler::greedy(),
     ]);
 
@@ -116,14 +118,14 @@ fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &s
     let mut n_decoded = tokens.len();
 
     for _ in 0..MAX_TOKENS {
-        let token = sampler.sample(&ctx, -1);
+        let token = sampler.sample(ctx, -1);
 
-        if model.is_eog_token(token) {
+        if ctx.model.is_eog_token(token) {
             break;
         }
 
         #[allow(deprecated)]
-        let piece = model
+        let piece = ctx.model
             .token_to_str(token, Special::Tokenize)
             .map_err(|e| format!("Token decode error: {}", e))?;
         output.push_str(&piece);
@@ -139,7 +141,25 @@ fn generate(model: &LlamaModel, backend: &LlamaBackend, prompt: &str, system: &s
         n_decoded += 1;
     }
 
-    Ok(output.trim().to_string())
+    let output = strip_thinking_tags(output.trim());
+    Ok(output)
+}
+
+/// Strip `<think>...</think>` blocks emitted by Qwen3 thinking mode.
+fn strip_thinking_tags(text: &str) -> String {
+    let mut result = text.to_string();
+    // Remove all <think>...</think> blocks (greedy within each block)
+    while let Some(start) = result.find("<think>") {
+        if let Some(end) = result.find("</think>") {
+            let end = end + "</think>".len();
+            result = format!("{}{}", &result[..start], &result[end..]);
+        } else {
+            // Unclosed <think> — remove from <think> to end
+            result = result[..start].to_string();
+            break;
+        }
+    }
+    result.trim().to_string()
 }
 
 fn main() {
@@ -176,6 +196,13 @@ fn main() {
     let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
         .expect("Failed to load model");
 
+    // Create context once — reused across all requests (cleared via clear_kv_cache)
+    let ctx_params = LlamaContextParams::default()
+        .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()));
+    let mut ctx = model
+        .new_context(&backend, ctx_params)
+        .expect("Failed to create context");
+
     // Signal readiness
     let mut stdout = io::stdout().lock();
     let _ = writeln!(stdout, "{}", serde_json::to_string(&Response::pong()).unwrap());
@@ -208,7 +235,7 @@ fn main() {
         let resp = if req.command.as_deref() == Some("ping") {
             Response::pong()
         } else if let (Some(prompt), Some(system)) = (req.prompt.as_ref(), req.system.as_ref()) {
-            match generate(&model, &backend, prompt, system, chat_template) {
+            match generate(&mut ctx, prompt, system, chat_template) {
                 Ok(text) => Response::ok(text),
                 Err(e) => Response::err(e),
             }

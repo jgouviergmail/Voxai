@@ -15,17 +15,27 @@ pub struct HistoryEntry {
     pub raw_text: String,
     pub final_text: String,
     pub engine: String,
+    /// Detected or configured language (ISO 639-1 code, e.g. "fr").
+    #[serde(default)]
+    pub language: Option<String>,
     pub duration_ms: u64,
     pub created_at: DateTime<Utc>,
 }
 
 impl HistoryEntry {
-    pub fn new(raw_text: String, final_text: String, engine: String, duration_ms: u64) -> Self {
+    pub fn new(
+        raw_text: String,
+        final_text: String,
+        engine: String,
+        language: Option<String>,
+        duration_ms: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             raw_text,
             final_text,
             engine,
+            language,
             duration_ms,
             created_at: Utc::now(),
         }

@@ -6,18 +6,14 @@ use super::LlmBackend;
 use crate::error::AppError;
 
 pub struct OllamaBackend {
-    host: String,
-    port: u16,
+    client: Ollama,
     model: String,
 }
 
 impl OllamaBackend {
     pub fn new(host: String, port: u16, model: String) -> Self {
-        Self { host, port, model }
-    }
-
-    fn client(&self) -> Ollama {
-        Ollama::new(format!("http://{}", self.host), self.port)
+        let client = Ollama::new(format!("http://{}", host), port);
+        Self { client, model }
     }
 }
 
@@ -32,17 +28,14 @@ impl LlmBackend for OllamaBackend {
     }
 
     async fn is_available(&self) -> bool {
-        let client = self.client();
-        client.list_local_models().await.is_ok()
+        self.client.list_local_models().await.is_ok()
     }
 
     async fn generate(&self, prompt: &str, system: &str) -> Result<String, AppError> {
-        let client = self.client();
-
         let request = GenerationRequest::new(self.model.clone(), prompt.to_string())
             .system(system.to_string());
 
-        let response = client
+        let response = self.client
             .generate(request)
             .await
             .map_err(|e| AppError::Llm(format!("Ollama generation failed: {}", e)))?;

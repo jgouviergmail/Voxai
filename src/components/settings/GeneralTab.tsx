@@ -1,5 +1,5 @@
 import { createSignal, onMount, onCleanup, Show } from "solid-js";
-import type { AppConfig, InputDeviceInfo, LanguageInfo, NvidiaInfo } from "../../types";
+import type { AppConfig, HotkeyConfig, InputDeviceInfo, LanguageInfo, NvidiaInfo } from "../../types";
 import { detectNvidia, listAudioDevices, listSupportedLanguages } from "../../lib/commands";
 import Toggle from "../ui/Toggle";
 import Select from "../ui/Select";
@@ -12,8 +12,8 @@ function mapKeyToRdev(e: KeyboardEvent): string | null {
   const { code, key } = e;
   if (code === "Space") return "Space";
   if (/^F([1-9]|1[0-2])$/.test(code)) return code; // F1-F12
-  const letter = code.match(/^Key([A-Z])$/);
-  if (letter) return letter[1]; // A-Z
+  // Use event.key for letters — layout-aware (works on AZERTY, QWERTZ, etc.)
+  if (key.length === 1 && /^[a-zA-Z]$/.test(key)) return key.toUpperCase();
   // Digit keys
   const digit = code.match(/^Digit(\d)$/);
   if (digit) return digit[1];
@@ -35,29 +35,61 @@ function formatHotkey(key: string, modifiers: string[]): string {
   return [...modifiers, key].join("+");
 }
 
-const DEFAULT_HOTKEY = { key: "Space", modifiers: ["Control", "Shift"] };
+/** Reusable hotkey recorder — avoids duplicating recorder logic. */
+function createHotkeyRecorder(onRecorded: (key: string, mods: string[]) => void) {
+  const [active, setActive] = createSignal(false);
+  let handler: ((e: KeyboardEvent) => void) | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const cancel = () => {
+    setActive(false);
+    if (handler) {
+      document.removeEventListener("keydown", handler, true);
+      handler = null;
+    }
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  const start = () => {
+    setActive(true);
+    timeout = setTimeout(() => cancel(), 5000);
+    handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = mapKeyToRdev(e);
+      if (!key) return;
+      const mods = modifiersFromEvent(e);
+      cancel();
+      onRecorded(key, mods);
+    };
+    document.addEventListener("keydown", handler, true);
+  };
+
+  return { active, cancel, start };
+}
+
+const DEFAULT_HOTKEY: HotkeyConfig = { key: "Space", modifiers: ["Control", "Shift"] };
+const DEFAULT_TEXT_HOTKEY: HotkeyConfig = { key: "R", modifiers: ["Control", "Shift"] };
 
 export default function GeneralTab() {
   const [devices, setDevices] = createSignal<InputDeviceInfo[]>([]);
   const [languages, setLanguages] = createSignal<LanguageInfo[]>([]);
-  const [recording, setRecording] = createSignal(false);
   const [gpuInfo, setGpuInfo] = createSignal<NvidiaInfo | null>(null);
 
-  // Hotkey recorder state — tracked outside signals for proper cleanup
-  let activeHandler: ((e: KeyboardEvent) => void) | null = null;
-  let activeTimeout: ReturnType<typeof setTimeout> | null = null;
+  const save = (updater: (c: AppConfig) => void) => appStore.saveSetting(updater);
 
-  const cancelRecording = () => {
-    setRecording(false);
-    if (activeHandler) {
-      document.removeEventListener("keydown", activeHandler, true);
-      activeHandler = null;
-    }
-    if (activeTimeout) {
-      clearTimeout(activeTimeout);
-      activeTimeout = null;
-    }
-  };
+  // Push-to-talk hotkey recorder
+  const pttRecorder = createHotkeyRecorder((key, mods) => {
+    save((c) => { c.general.hotkey = { key, modifiers: mods }; });
+  });
+
+  // Text processing hotkey recorder
+  const textRecorder = createHotkeyRecorder((key, mods) => {
+    save((c) => { c.general.text_hotkey = { key, modifiers: mods }; });
+  });
 
   onMount(async () => {
     try {
@@ -77,9 +109,10 @@ export default function GeneralTab() {
     }
   });
 
-  onCleanup(() => cancelRecording());
-
-  const save = (updater: (c: AppConfig) => void) => appStore.saveSetting(updater);
+  onCleanup(() => {
+    pttRecorder.cancel();
+    textRecorder.cancel();
+  });
 
   const config = () => appStore.config()!;
 
@@ -95,28 +128,32 @@ export default function GeneralTab() {
         {i18n.t("general.input")}
       </h3>
 
-      <Select
-        label={i18n.t("general.microphone")}
-        value={config().general.input_device ?? ""}
-        options={[
-          { value: "", label: i18n.t("general.default_device") },
-          ...devices().map((d) => ({
-            value: d.name,
-            label: `${d.name}${d.is_default ? " (default)" : ""}`,
-          })),
-        ]}
-        onChange={(v) => save((c) => (c.general.input_device = v || null))}
-      />
+      <Show when={devices().length > 0}>
+        <Select
+          label={i18n.t("general.microphone")}
+          value={config().general.input_device ?? ""}
+          options={[
+            { value: "", label: i18n.t("general.default_device") },
+            ...devices().map((d) => ({
+              value: d.name,
+              label: `${d.name}${d.is_default ? " (default)" : ""}`,
+            })),
+          ]}
+          onChange={(v) => save((c) => (c.general.input_device = v || null))}
+        />
+      </Show>
 
-      <Select
-        label={i18n.t("general.language")}
-        value={config().general.language}
-        options={languages().map((l) => ({
-          value: l.code,
-          label: l.name,
-        }))}
-        onChange={(v) => save((c) => (c.general.language = v))}
-      />
+      <Show when={languages().length > 0}>
+        <Select
+          label={i18n.t("general.language")}
+          value={config().general.language ?? ""}
+          options={languages().map((l) => ({
+            value: l.code,
+            label: l.name,
+          }))}
+          onChange={(v) => save((c) => (c.general.language = v || null))}
+        />
+      </Show>
 
       <Select
         label={i18n.t("general.ui_language")}
@@ -166,7 +203,7 @@ export default function GeneralTab() {
               <span class={isDark() ? "text-gray-400" : "text-gray-500"}>
                 {i18n.t("general.push_to_talk")}{" "}
               </span>
-              {recording() ? (
+              {pttRecorder.active() ? (
                 <span class="text-yellow-500 animate-pulse text-xs font-medium">
                   {i18n.t("general.press_shortcut")}
                 </span>
@@ -188,46 +225,83 @@ export default function GeneralTab() {
             <div class="flex gap-2">
               <Button
                 size="sm"
-                variant={recording() ? "danger" : "secondary"}
-                onClick={() => {
-                  if (recording()) {
-                    cancelRecording();
-                    return;
-                  }
-                  setRecording(true);
-
-                  activeTimeout = setTimeout(() => cancelRecording(), 5000);
-
-                  activeHandler = (e: KeyboardEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const key = mapKeyToRdev(e);
-                    if (!key) return; // modifier-only, keep listening
-                    const mods = modifiersFromEvent(e);
-                    cancelRecording();
-                    save((c) => {
-                      c.general.hotkey = { key, modifiers: mods };
-                    });
-                  };
-                  document.addEventListener("keydown", activeHandler, true);
-                }}
+                variant={pttRecorder.active() ? "danger" : "secondary"}
+                onClick={() => pttRecorder.active() ? pttRecorder.cancel() : pttRecorder.start()}
               >
-                {recording() ? i18n.t("general.cancel") : i18n.t("general.record")}
+                {pttRecorder.active() ? i18n.t("general.cancel") : i18n.t("general.record")}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() =>
-                  save((c) => {
-                    c.general.hotkey = { ...DEFAULT_HOTKEY };
-                  })
-                }
+                onClick={() => save((c) => { c.general.hotkey = { ...DEFAULT_HOTKEY }; })}
               >
                 {i18n.t("general.reset")}
               </Button>
             </div>
           </div>
         </div>
+      </div>
+
+      <div class={`border-t ${borderClass()} pt-4 mt-4`}>
+        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
+          {i18n.t("general.text_hotkey")}
+        </h3>
+        <Toggle
+          label={i18n.t("general.text_hotkey_enable")}
+          description={i18n.t("general.text_hotkey_desc")}
+          checked={config().general.text_hotkey !== null}
+          onChange={(v) =>
+            save((c) => {
+              c.general.text_hotkey = v ? { ...DEFAULT_TEXT_HOTKEY } : null;
+            })
+          }
+        />
+        <Show when={config().general.text_hotkey}>
+          <div
+            class={`rounded-lg p-3 text-sm mt-2 ${
+              isDark() ? "bg-gray-800" : "bg-gray-100"
+            }`}
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                {textRecorder.active() ? (
+                  <span class="text-yellow-500 animate-pulse text-xs font-medium">
+                    {i18n.t("general.press_shortcut")}
+                  </span>
+                ) : (
+                  <kbd
+                    class={`px-2 py-0.5 rounded text-xs font-mono ${
+                      isDark()
+                        ? "bg-gray-700 text-gray-200"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {formatHotkey(
+                      config().general.text_hotkey!.key,
+                      config().general.text_hotkey!.modifiers
+                    )}
+                  </kbd>
+                )}
+              </div>
+              <div class="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={textRecorder.active() ? "danger" : "secondary"}
+                  onClick={() => textRecorder.active() ? textRecorder.cancel() : textRecorder.start()}
+                >
+                  {textRecorder.active() ? i18n.t("general.cancel") : i18n.t("general.record")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => save((c) => { c.general.text_hotkey = { ...DEFAULT_TEXT_HOTKEY }; })}
+                >
+                  {i18n.t("general.reset")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Show>
       </div>
 
       <div class={`border-t ${borderClass()} pt-4 mt-4`}>

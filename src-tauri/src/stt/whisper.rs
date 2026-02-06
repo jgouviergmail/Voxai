@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use whisper_rs::{get_lang_str, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use super::{Segment, SttEngine, TranscriptionResult};
 use crate::error::AppError;
@@ -77,11 +77,12 @@ pub fn language_name_from_code(code: &str) -> Option<&'static str> {
 
 pub struct WhisperEngine {
     context: Option<WhisperContext>,
+    use_gpu: bool,
 }
 
 impl WhisperEngine {
-    pub fn new() -> Self {
-        Self { context: None }
+    pub fn new(use_gpu: bool) -> Self {
+        Self { context: None, use_gpu }
     }
 }
 
@@ -99,7 +100,14 @@ impl SttEngine for WhisperEngine {
             .to_str()
             .ok_or_else(|| AppError::Stt("Invalid model path".to_string()))?;
 
-        let ctx = WhisperContext::new_with_params(path_str, WhisperContextParameters::default())
+        let mut ctx_params = WhisperContextParameters::default();
+        if self.use_gpu {
+            ctx_params.use_gpu(true);
+            ctx_params.gpu_device(0);
+            ctx_params.flash_attn(true);
+        }
+
+        let ctx = WhisperContext::new_with_params(path_str, ctx_params)
             .map_err(|e| AppError::Stt(format!("Failed to load Whisper model: {}", e)))?;
 
         self.context = Some(ctx);
@@ -130,10 +138,7 @@ impl SttEngine for WhisperEngine {
             AppError::Stt(format!("Failed to create whisper state: {}", e))
         })?;
 
-        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
-            beam_size: 5,
-            patience: -1.0,
-        });
+        let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(language);
         params.set_print_progress(false);
         params.set_print_realtime(false);
@@ -167,15 +172,21 @@ impl SttEngine for WhisperEngine {
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
+        let detected_lang = {
+            let lang_id = state.full_lang_id_from_state();
+            get_lang_str(lang_id as i32).map(|s| s.to_string())
+        };
+
         log::info!(
-            "Transcription complete: {} segments, {}ms",
+            "Transcription complete: {} segments, {}ms, lang={:?}",
             segments.len(),
-            duration_ms
+            duration_ms,
+            detected_lang
         );
 
         Ok(TranscriptionResult {
             text: text.trim().to_string(),
-            language: None,
+            language: detected_lang,
             segments,
             duration_ms,
         })

@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -8,22 +9,42 @@ use super::HotkeyEvent;
 use crate::config::schema::HotkeyConfig;
 
 /// Starts the global keyboard listener in a dedicated thread.
-/// Reads hotkey config from a shared Arc<RwLock> so it can be updated at runtime
+/// Reads hotkey config from shared Arc<RwLock>s so they can be updated at runtime
 /// without restarting the listener thread.
-pub fn start_listener(hotkey: Arc<RwLock<HotkeyConfig>>) -> mpsc::Receiver<HotkeyEvent> {
+/// `is_simulating` prevents processing of simulated keystrokes (from enigo).
+pub fn start_listener(
+    hotkey: Arc<RwLock<HotkeyConfig>>,
+    text_hotkey: Arc<RwLock<Option<HotkeyConfig>>>,
+    is_simulating: Arc<AtomicBool>,
+) -> mpsc::Receiver<HotkeyEvent> {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
         let mut modifiers_pressed = ModifierState::default();
 
         listen(move |event: Event| {
+            // Skip all processing while we are simulating keystrokes (Ctrl+C/V)
+            if is_simulating.load(Ordering::SeqCst) {
+                return;
+            }
+
             match event.event_type {
                 EventType::KeyPress(key) => {
                     update_modifier_state(&mut modifiers_pressed, &key, true);
 
+                    // Push-to-talk hotkey
                     if let Ok(config) = hotkey.read() {
                         if matches_hotkey(&key, &modifiers_pressed, &config) {
                             let _ = tx.send(HotkeyEvent::RecordStart);
+                        }
+                    }
+
+                    // Text processing hotkey (fire on press, no release needed)
+                    if let Ok(guard) = text_hotkey.read() {
+                        if let Some(ref text_cfg) = *guard {
+                            if matches_hotkey(&key, &modifiers_pressed, text_cfg) {
+                                let _ = tx.send(HotkeyEvent::TextProcess);
+                            }
                         }
                     }
                 }

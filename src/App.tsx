@@ -1,5 +1,5 @@
 import { createSignal, onMount, onCleanup, Show, Switch, Match } from "solid-js";
-import { getSettings, getHistory, getRecordingState } from "./lib/commands";
+import { getSettings, getSettingsWithRetry, getHistory, getRecordingState } from "./lib/commands";
 import {
   onRecordingStateChanged,
   onTranscriptionComplete,
@@ -20,6 +20,7 @@ const TAB_IDS = ["general", "engines", "postprocessing", "substitutions", "histo
 
 function App() {
   const [activeTab, setActiveTab] = createSignal("general");
+  const [loadError, setLoadError] = createSignal("");
 
   const tabs = () => [
     { id: "general", label: i18n.t("tab.general") },
@@ -31,13 +32,14 @@ function App() {
 
   onMount(async () => {
     try {
-      const config = await getSettings();
+      const config = await getSettingsWithRetry();
       appStore.setConfig(config);
       if (config.general.ui_language) {
         i18n.setLocale(config.general.ui_language);
       }
     } catch (e) {
       console.error("Failed to load settings:", e);
+      setLoadError(String(e));
     }
 
     try {
@@ -140,10 +142,10 @@ function App() {
   );
 
   return (
-    <PageShell statusBar={statusBarJsx()}>
-      {/* Tabs */}
-      <TabBar tabs={tabs()} active={activeTab()} onSelect={setActiveTab} />
-
+    <PageShell
+      statusBar={statusBarJsx()}
+      tabBar={<TabBar tabs={tabs()} active={activeTab()} onSelect={setActiveTab} />}
+    >
       {/* Tab content */}
       <Show when={appStore.config()}>
         <Switch>
@@ -166,13 +168,21 @@ function App() {
       </Show>
 
       <Show when={!appStore.config()}>
-        <p
-          class={`text-sm ${
-            appStore.theme() === "dark" ? "text-gray-500" : "text-gray-400"
-          }`}
-        >
-          {i18n.t("loading.settings")}
-        </p>
+        <div class="p-4">
+          <p
+            class={`text-sm ${
+              appStore.theme() === "dark" ? "text-gray-500" : "text-gray-400"
+            }`}
+          >
+            {i18n.t("loading.settings")}
+          </p>
+          <Show when={loadError()}>
+            <p class="text-red-500 text-xs mt-2 font-mono break-all">
+              {loadError()}
+            </p>
+          </Show>
+          <p class="text-gray-600 text-[10px] mt-4 font-mono">v0.1.1</p>
+        </div>
       </Show>
     </PageShell>
   );

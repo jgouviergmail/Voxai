@@ -89,3 +89,9 @@ impl From<arboard::Error> for AppError {
         Self::Injection(e.to_string())
     }
 }
+
+impl<T> From<std::sync::PoisonError<T>> for AppError {
+    fn from(e: std::sync::PoisonError<T>) -> Self {
+        Self::Internal(e.to_string())
+    }
+}

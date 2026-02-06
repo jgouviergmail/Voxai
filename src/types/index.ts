@@ -13,9 +13,10 @@ export interface GeneralConfig {
   auto_start: boolean;
   auto_enter: boolean;
   clipboard_restore: boolean;
-  language: string;
+  language: string | null;
   gpu_acceleration: boolean;
   ui_language: string;
+  text_hotkey: HotkeyConfig | null;
 }
 
 export interface HotkeyConfig {
@@ -109,6 +110,7 @@ export interface HistoryEntry {
   raw_text: string;
   final_text: string;
   engine: string;
+  language: string | null;
   duration_ms: number;
   created_at: string;
 }

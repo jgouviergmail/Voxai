@@ -1,7 +1,8 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -87,6 +88,13 @@ impl LocalLlmBackend {
             cmd.args(["--gpu-layers", &layers.to_string()]);
         }
 
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -103,43 +111,64 @@ impl LocalLlmBackend {
             .take()
             .ok_or_else(|| AppError::Llm("Worker stdin not captured".into()))?;
 
-        let mut reader = BufReader::new(stdout);
+        let reader = BufReader::new(stdout);
 
-        // Wait for the readiness signal from the worker
-        let mut ready_line = String::new();
-        reader
-            .read_line(&mut ready_line)
-            .map_err(|e| AppError::Llm(format!("Failed to read worker readiness: {}", e)))?;
+        // Wait for the readiness signal with a timeout.
+        // read_line blocks until the worker loads its model, which can take
+        // a long time for large GGUF files. Use a thread + channel so we can
+        // bail out if it takes too long (e.g. 120 seconds).
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut reader = reader;
+            let mut line = String::new();
+            let result = reader.read_line(&mut line);
+            let _ = tx.send((result, line, reader));
+        });
 
-        if ready_line.is_empty() {
-            // Worker exited before sending readiness — get exit status for diagnostics
-            let status = child.wait().ok();
-            return Err(AppError::Llm(format!(
-                "LLM worker exited before readiness signal (exit: {:?})",
-                status
-            )));
+        match rx.recv_timeout(Duration::from_secs(120)) {
+            Ok((read_result, ready_line, reader)) => {
+                read_result
+                    .map_err(|e| AppError::Llm(format!("Failed to read worker readiness: {}", e)))?;
+
+                if ready_line.is_empty() {
+                    let status = child.wait().ok();
+                    return Err(AppError::Llm(format!(
+                        "LLM worker exited before readiness signal (exit: {:?})",
+                        status
+                    )));
+                }
+
+                let ready: WorkerResponse = serde_json::from_str(&ready_line)
+                    .map_err(|e| AppError::Llm(format!("Invalid readiness JSON: {}", e)))?;
+
+                if ready.status.as_deref() != Some("ok") {
+                    return Err(AppError::Llm(format!(
+                        "Worker readiness failed: {:?}",
+                        ready.error
+                    )));
+                }
+
+                log::info!("LLM worker ready: {}", model_name);
+
+                Ok(Self {
+                    model_name,
+                    worker: Arc::new(Mutex::new(WorkerHandle {
+                        child,
+                        reader,
+                        writer: stdin,
+                    })),
+                })
+            }
+            Err(_) => {
+                // Timeout — kill the worker process (this also closes stdout,
+                // which unblocks the reader thread so it can exit cleanly)
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(AppError::Llm(
+                    "LLM worker failed to start within 120 seconds".into(),
+                ))
+            }
         }
-
-        let ready: WorkerResponse = serde_json::from_str(&ready_line)
-            .map_err(|e| AppError::Llm(format!("Invalid readiness JSON: {}", e)))?;
-
-        if ready.status.as_deref() != Some("ok") {
-            return Err(AppError::Llm(format!(
-                "Worker readiness failed: {:?}",
-                ready.error
-            )));
-        }
-
-        log::info!("LLM worker ready: {}", model_name);
-
-        Ok(Self {
-            model_name,
-            worker: Arc::new(Mutex::new(WorkerHandle {
-                child,
-                reader,
-                writer: stdin,
-            })),
-        })
     }
 }
 

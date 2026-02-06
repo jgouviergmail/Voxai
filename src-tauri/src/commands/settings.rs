@@ -21,7 +21,8 @@ pub fn update_settings(
     config: AppConfig,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
-    persistence::save_and_notify(&config, &state.app_handle)?;
+    // Save to disk first (without notifying — we notify AFTER all state is consistent)
+    persistence::save_config(&config)?;
 
     // Check if LLM backend config changed — rebuild if needed
     let needs_llm_rebuild = {
@@ -59,11 +60,25 @@ pub fn update_settings(
                 Some(Arc::new(backend) as Arc<dyn crate::llm::LlmBackend>)
             }
             LlmBackendType::Local => {
-                let cache = state
-                    .model_cache
-                    .lock()
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-                crate::build_local_llm_backend(&config, &cache)
+                let model_id = config.llm.local.model_id.as_deref()
+                    .unwrap_or("gemma-3-1b-q4");
+                let model_path = {
+                    let cache = state
+                        .model_cache
+                        .lock()
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
+                    cache.model_path(model_id)
+                };
+                // MutexGuard dropped — LocalLlmBackend::new() may block for up to 120s
+                match model_path {
+                    Some(path) => crate::build_local_llm_from_path(
+                        model_id, &path, config.general.gpu_acceleration,
+                    ),
+                    None => {
+                        log::warn!("Local LLM model '{}' not downloaded", model_id);
+                        None
+                    }
+                }
             }
             LlmBackendType::None => {
                 log::info!("LLM backend disabled");
@@ -78,7 +93,7 @@ pub fn update_settings(
         *backend = new_backend;
     }
 
-    // Update shared hotkey config (live-read by keyboard_hook thread)
+    // Update shared hotkey configs (live-read by keyboard_hook thread)
     {
         let mut hk = state
             .hotkey_config
@@ -86,6 +101,16 @@ pub fn update_settings(
             .map_err(|e| AppError::Internal(e.to_string()))?;
         *hk = config.general.hotkey.clone();
     }
+    {
+        let mut thk = state
+            .text_hotkey_config
+            .write()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        *thk = config.general.text_hotkey.clone();
+    }
+
+    // Notify frontend AFTER all state is consistent (config + backend + hotkey)
+    persistence::notify_settings_updated(&state.app_handle);
 
     log::info!("Settings updated");
     Ok(())
