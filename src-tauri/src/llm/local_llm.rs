@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -30,8 +30,8 @@ struct WorkerResponse {
 
 struct WorkerHandle {
     child: Child,
-    reader: BufReader<std::process::ChildStdout>,
-    writer: std::process::ChildStdin,
+    reader: BufReader<ChildStdout>,
+    writer: ChildStdin,
 }
 
 impl WorkerHandle {
@@ -61,7 +61,7 @@ impl WorkerHandle {
 
 pub struct LocalLlmBackend {
     model_name: String,
-    worker: Mutex<WorkerHandle>,
+    worker: Arc<Mutex<WorkerHandle>>,
 }
 
 impl LocalLlmBackend {
@@ -75,7 +75,7 @@ impl LocalLlmBackend {
         );
 
         let mut child = Command::new(&worker_bin)
-            .arg(model_path.to_string_lossy().as_ref())
+            .arg(model_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -122,18 +122,18 @@ impl LocalLlmBackend {
 
         Ok(Self {
             model_name,
-            worker: Mutex::new(WorkerHandle {
+            worker: Arc::new(Mutex::new(WorkerHandle {
                 child,
                 reader,
                 writer: stdin,
-            }),
+            })),
         })
     }
 }
 
 impl Drop for LocalLlmBackend {
     fn drop(&mut self) {
-        if let Ok(handle) = self.worker.get_mut() {
+        if let Ok(mut handle) = self.worker.lock() {
             // Kill the worker and wait for it to exit
             let _ = handle.child.kill();
             let _ = handle.child.wait();
@@ -164,33 +164,33 @@ impl super::LlmBackend for LocalLlmBackend {
     }
 
     async fn generate(&self, prompt: &str, system: &str) -> Result<String, AppError> {
+        let worker = Arc::clone(&self.worker);
         let prompt = prompt.to_string();
         let system = system.to_string();
 
-        // We need to move the Mutex reference into spawn_blocking, but LocalLlmBackend
-        // is behind Arc in AppState, so we use a raw pointer trick via a scoped approach.
-        // Actually, since self is &self and we're in async context, we extract work into a closure.
+        // Worker I/O is blocking (read_line waits for LLM inference) — offload to blocking pool
+        tauri::async_runtime::spawn_blocking(move || {
+            let req = WorkerRequest {
+                command: None,
+                prompt: Some(prompt),
+                system: Some(system),
+            };
 
-        // Clone strings, then do blocking I/O on the worker
-        let req = WorkerRequest {
-            command: None,
-            prompt: Some(prompt),
-            system: Some(system),
-        };
+            let mut handle = worker.lock().map_err(|e| {
+                AppError::Llm(format!("Worker mutex poisoned: {}", e))
+            })?;
 
-        // Lock the worker (std::sync::Mutex — fine since no .await while held)
-        let mut handle = self.worker.lock().map_err(|e| {
-            AppError::Llm(format!("Worker mutex poisoned: {}", e))
-        })?;
+            let resp = handle.send_and_recv(&req)?;
 
-        let resp = handle.send_and_recv(&req)?;
+            if let Some(err) = resp.error {
+                return Err(AppError::Llm(err));
+            }
 
-        if let Some(err) = resp.error {
-            return Err(AppError::Llm(err));
-        }
-
-        resp.text
-            .ok_or_else(|| AppError::Llm("Worker returned empty response".into()))
+            resp.text
+                .ok_or_else(|| AppError::Llm("Worker returned empty response".into()))
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))?
     }
 }
 
