@@ -45,7 +45,7 @@
     "active": true,
     "targets": ["nsis"],
     "resources": {
-      "binaries/voxai-llm-worker.exe": "./"
+      "binaries/*": "./"
     },
     "icon": ["icons/icon.ico", "icons/icon.png"],
     "windows": {

@@ -88,3 +88,4 @@ export const getPromptPreview = (style: string) =>
 
 // GPU
 export const detectNvidia = () => invoke<NvidiaInfo>("detect_nvidia");
+export const detectCpuCount = () => invoke<number>("detect_cpu_count");

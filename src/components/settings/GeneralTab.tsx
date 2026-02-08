@@ -1,6 +1,6 @@
 import { createSignal, onMount, onCleanup, Show } from "solid-js";
 import type { AppConfig, HotkeyConfig, InputDeviceInfo, LanguageInfo, NvidiaInfo } from "../../types";
-import { detectNvidia, listAudioDevices, listSupportedLanguages } from "../../lib/commands";
+import { detectCpuCount, detectNvidia, listAudioDevices, listSupportedLanguages } from "../../lib/commands";
 import Toggle from "../ui/Toggle";
 import Select from "../ui/Select";
 import Button from "../ui/Button";
@@ -78,6 +78,7 @@ export default function GeneralTab() {
   const [devices, setDevices] = createSignal<InputDeviceInfo[]>([]);
   const [languages, setLanguages] = createSignal<LanguageInfo[]>([]);
   const [gpuInfo, setGpuInfo] = createSignal<NvidiaInfo | null>(null);
+  const [cpuCount, setCpuCount] = createSignal(4);
 
   const save = (updater: (c: AppConfig) => void) => appStore.saveSetting(updater);
 
@@ -106,6 +107,11 @@ export default function GeneralTab() {
       setGpuInfo(await detectNvidia());
     } catch (e) {
       console.error("GPU detection failed:", e);
+    }
+    try {
+      setCpuCount(await detectCpuCount());
+    } catch (e) {
+      console.error("CPU count detection failed:", e);
     }
   });
 
@@ -186,6 +192,19 @@ export default function GeneralTab() {
           description={i18n.t("general.restore_clipboard_desc")}
           checked={config().general.clipboard_restore}
           onChange={(v) => save((c) => (c.general.clipboard_restore = v))}
+        />
+      </div>
+
+      <div class={`border-t ${borderClass()} pt-4 mt-4`}>
+        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
+          {i18n.t("general.mode")}
+        </h3>
+
+        <Toggle
+          label={i18n.t("general.real_time")}
+          description={i18n.t("general.real_time_desc")}
+          checked={config().general.real_time}
+          onChange={(v) => save((c) => (c.general.real_time = v))}
         />
       </div>
 
@@ -329,6 +348,45 @@ export default function GeneralTab() {
             onChange={(v) => save((c) => (c.general.gpu_acceleration = v))}
           />
         </Show>
+      </div>
+
+      <div class={`border-t ${borderClass()} pt-4 mt-4`}>
+        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
+          {i18n.t("general.performance")}
+        </h3>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <label class={`text-sm ${isDark() ? "text-gray-300" : "text-gray-700"}`}>
+              {i18n.t("general.stt_threads")}
+            </label>
+            <span class={`text-sm font-mono ${isDark() ? "text-gray-400" : "text-gray-500"}`}>
+              {config().general.stt_threads === null
+                ? i18n.t("general.stt_threads_auto")
+                : `${config().general.stt_threads} / ${cpuCount()}`}
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max={cpuCount()}
+            step="1"
+            value={config().general.stt_threads ?? 0}
+            class="w-full accent-blue-500"
+            onInput={(e) => {
+              const val = parseInt(e.currentTarget.value);
+              save((c) => (c.general.stt_threads = val === 0 ? null : val));
+            }}
+          />
+          <p class={`text-xs ${headingColor()}`}>
+            {i18n.t("general.stt_threads_desc")}
+          </p>
+          <Show when={config().general.gpu_acceleration}>
+            <p class="text-xs text-yellow-500">
+              {i18n.t("general.stt_threads_gpu_note")}
+            </p>
+          </Show>
+        </div>
       </div>
     </div>
   );

@@ -39,10 +39,20 @@ const zh: Record<string, string> = {
   "general.text_hotkey": "\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",
   "general.text_hotkey_enable": "\u542f\u7528\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",
   "general.text_hotkey_desc": "\u9009\u62e9\u6587\u672c\u5e76\u6309\u4e0b\u5feb\u6377\u952e\u5373\u53ef\u5c31\u5730\u6539\u5199/\u7ffb\u8bd1",
+  "general.mode": "\u6a21\u5f0f",
+  "general.real_time": "\u5b9e\u65f6\u6a21\u5f0f",
+  "general.real_time_desc": "\u5f55\u97f3\u671f\u95f4\u9010\u6b65\u8f6c\u5f55\u548c\u6ce8\u5165\u6587\u672c",
+  "general.performance": "\u6027\u80fd",
+  "general.stt_threads": "CPU \u7ebf\u7a0b\u6570 (STT)",
+  "general.stt_threads_desc": "\u8bed\u97f3\u8bc6\u522b\u7684 CPU \u7ebf\u7a0b\u6570\uff08\u81ea\u52a8 = \u7531\u5f15\u64ce\u51b3\u5b9a\uff09",
+  "general.stt_threads_gpu_note": "GPU \u6fc0\u6d3b\u65f6\u5f71\u54cd\u8f83\u5c0f",
+  "general.stt_threads_auto": "\u81ea\u52a8",
 
   // Overlay
   "overlay.reformulation": "\u6539\u5199",
   "overlay.translation": "\u7ffb\u8bd1",
+  "overlay.real_time": "\u5b9e\u65f6",
+  "overlay.llm_latency_warn": "LLM \u6bcf\u6bb5\u589e\u52a0\u5ef6\u8fdf",
 
   // Engines
   "engines.loaded": "\u5df2\u52a0\u8f7d",
@@ -66,6 +76,7 @@ const zh: Record<string, string> = {
   "model.desc.whisper-small": "\u66f4\u9ad8\u7cbe\u5ea6\uff0c\u901f\u5ea6\u5408\u7406\u3002\u5904\u7406\u65f6\u95f4\u7ea6 2-3 \u79d2\u3002",
   "model.desc.whisper-medium": "\u9ad8\u7cbe\u5ea6\u3002\u5904\u7406\u65f6\u95f4\u7ea6 5-8 \u79d2\u3002",
   "model.desc.whisper-large-v3": "\u6700\u9ad8\u7cbe\u5ea6\u3002\u5904\u7406\u65f6\u95f4\u7ea6 10-15 \u79d2\u3002\u9700\u8981 4GB+ \u5185\u5b58\u3002",
+  "model.desc.distil-whisper-large-v3": "\u6bd4 Large v3 \u5feb 6 \u500d\uff0c\u7cbe\u5ea6\u76f8\u5f53\u3002\u4ec5\u82f1\u8bed\u3002",
   "model.desc.gemma-3-1b-q4": "Google Gemma 3\u3002140+ \u8bed\u8a00\uff0c128K \u4e0a\u4e0b\u6587\uff0cCPU \u4e0a\u975e\u5e38\u5feb\u3002",
   "model.desc.qwen3-1.7b-q4": "100+ \u8bed\u8a00\uff0c\u601d\u7ef4\u6a21\u5f0f\u3002\u5feb\u901f\u4e14\u591a\u8bed\u8a00\u3002",
   "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4)\uff08\u901f\u5ea6\u4e0e\u7cbe\u5ea6\u6700\u4f73\u5e73\u8861\uff09",

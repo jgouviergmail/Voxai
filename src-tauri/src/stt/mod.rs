@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::error::AppError;
 
+pub mod vad;
 pub mod whisper;
 
 /// Trait for speech-to-text engines.
@@ -15,7 +16,7 @@ pub trait SttEngine: Send + Sync {
     fn load_model(&mut self, model_path: &Path) -> Result<(), AppError>;
     fn unload_model(&mut self);
     fn is_loaded(&self) -> bool;
-    fn transcribe(&self, samples: &[f32], language: Option<&str>) -> Result<TranscriptionResult, AppError>;
+    fn transcribe(&self, samples: &[f32], language: Option<&str>, initial_prompt: Option<&str>) -> Result<TranscriptionResult, AppError>;
 }
 
 #[derive(Debug, Clone, Serialize)]

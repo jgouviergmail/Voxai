@@ -13,8 +13,10 @@ mod history;
 mod hotkey;
 mod injection;
 mod llm;
+mod logging;
 mod models;
 mod postprocessing;
+mod streaming;
 mod stt;
 mod tray;
 
@@ -29,18 +31,21 @@ use models::cache::ModelCache;
 use stt::whisper::WhisperEngine;
 
 pub fn run() {
-    env_logger::init();
+    logging::setup_logging();
+    log::info!("=== Voxai v{} starting ===", env!("CARGO_PKG_VERSION"));
+    if let Some(path) = logging::log_path() {
+        log::info!("Log file: {}", path.display());
+    }
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            log_startup_error("setup closure entered");
+            log::info!("Setup starting");
             if let Err(e) = do_setup(app) {
-                let msg = format!("Setup FAILED: {}", e);
-                log_startup_error(&msg);
-                return Err(msg.into());
+                log::error!("Setup FAILED: {}", e);
+                return Err(format!("Setup FAILED: {}", e).into());
             }
-            log_startup_error("setup closure complete (OK)");
+            log::info!("Setup complete");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -78,6 +83,7 @@ pub fn run() {
             commands::postprocessing::get_prompt_preview,
             // GPU
             commands::gpu::detect_nvidia,
+            commands::gpu::detect_cpu_count,
         ])
         .build(tauri::generate_context!());
 
@@ -85,7 +91,7 @@ pub fn run() {
         Ok(a) => a,
         Err(e) => {
             let msg = format!("Failed to start Voxai: {}", e);
-            log_startup_error(&msg);
+            log::error!("{}", msg);
             show_error_dialog(&msg);
             return;
         }
@@ -148,8 +154,11 @@ async fn handle_record_start(
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
+        log::debug!("handle_record_start: already recording, ignoring");
         return Ok(());
     }
+
+    log::info!("Recording started");
 
     {
         let mut recording = state
@@ -162,23 +171,80 @@ async fn handle_record_start(
     let _ = tray::update_tray_icon(app, tray::TrayState::Recording);
     let _ = app.emit(events::EVENT_RECORDING_STATE_CHANGED, RecordingState::Recording);
 
-    let device_name = {
+    let (device_name, real_time, clipboard_restore) = {
         let config = state
             .config
             .read()
             .map_err(|e| error::AppError::Internal(e.to_string()))?;
-        config.general.input_device.clone()
+        (
+            config.general.input_device.clone(),
+            config.general.real_time,
+            config.general.clipboard_restore,
+        )
     };
 
-    let mut capture = state
-        .audio_capture
-        .lock()
-        .map_err(|e| error::AppError::Internal(e.to_string()))?;
+    log::info!("Mode: {}", if real_time { "streaming" } else { "batch" });
 
-    if let Err(e) = capture.start(device_name.as_deref()) {
-        drop(capture);
-        reset_state(app, &state.is_recording, &state.recording);
-        return Err(e);
+    if real_time {
+        // --- Streaming mode ---
+        // 1. Save clipboard BEFORE capture (restored at end)
+        let saved_clipboard = if clipboard_restore {
+            tauri::async_runtime::spawn_blocking(|| {
+                arboard::Clipboard::new()
+                    .ok()
+                    .and_then(|mut cb| cb.get_text().ok())
+            })
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        };
+
+        // 2. Start streaming capture
+        let (rx, sr, ch) = {
+            let mut capture = state
+                .audio_capture
+                .lock()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            match capture.start_streaming(device_name.as_deref()) {
+                Ok(rx) => (rx, capture.sample_rate(), capture.channels()),
+                Err(e) => {
+                    drop(capture);
+                    reset_state(app, &state.is_recording, &state.recording);
+                    return Err(e);
+                }
+            }
+        };
+
+        let stt = Arc::clone(&state.stt_engine);
+        let llm = Arc::clone(&state.llm_backend);
+        let injector = Arc::clone(&state.text_injector);
+        let cfg = Arc::clone(&state.config);
+        let app_clone = app.clone();
+
+        let handle = tauri::async_runtime::spawn(async move {
+            streaming::run_streaming(rx, stt, llm, injector, cfg, app_clone, sr, ch).await
+        });
+
+        if let Ok(mut h) = state.streaming_handle.lock() {
+            *h = Some(handle);
+        }
+        if let Ok(mut cb) = state.saved_clipboard.lock() {
+            *cb = saved_clipboard;
+        }
+    } else {
+        // --- Batch mode (existing behavior) ---
+        let mut capture = state
+            .audio_capture
+            .lock()
+            .map_err(|e| error::AppError::Internal(e.to_string()))?;
+
+        if let Err(e) = capture.start(device_name.as_deref()) {
+            drop(capture);
+            reset_state(app, &state.is_recording, &state.recording);
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -193,46 +259,159 @@ async fn handle_record_stop(
         return Ok(());
     }
 
-    let captured = {
-        let mut capture = state
-            .audio_capture
-            .lock()
+    log::info!("Recording stopped");
+
+    let real_time = {
+        let cfg = state
+            .config
+            .read()
             .map_err(|e| error::AppError::Internal(e.to_string()))?;
-        capture.stop()?
+        cfg.general.real_time
     };
 
-    set_processing_state(app, &state.recording, ProcessingStage::Transcribing)?;
-    let _ = tray::update_tray_icon(app, tray::TrayState::Processing);
+    if real_time {
+        // --- Streaming mode ---
 
-    let stt_engine = Arc::clone(&state.stt_engine);
-    let text_injector = Arc::clone(&state.text_injector);
-    let history = Arc::clone(&state.history);
-    let config_arc = Arc::clone(&state.config);
-    let recording = Arc::clone(&state.recording);
-    let is_recording = Arc::clone(&state.is_recording);
-    let llm_backend = Arc::clone(&state.llm_backend);
-    let app_clone = app.clone();
-
-    tauri::async_runtime::spawn(async move {
-        let result = run_pipeline(
-            &app_clone,
-            captured,
-            stt_engine,
-            text_injector,
-            history,
-            config_arc,
-            llm_backend,
-            &recording,
-        )
-        .await;
-
-        if let Err(e) = result {
-            log::error!("Pipeline error: {}", e);
-            let _ = app_clone.emit(events::EVENT_ERROR, format!("{}", e));
+        // 1. Stop capture (closes the channel → streaming loop terminates)
+        {
+            let mut capture = state
+                .audio_capture
+                .lock()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            let _ = capture.stop();
         }
 
-        reset_state(&app_clone, &is_recording, &recording);
-    });
+        // 2. Join the streaming task
+        let handle = {
+            let mut h = state
+                .streaming_handle
+                .lock()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            h.take()
+        };
+        let result = if let Some(h) = handle {
+            match h.await {
+                Ok(Ok(r)) => r,
+                Ok(Err(e)) => {
+                    log::error!("Streaming error: {}", e);
+                    let _ = app.emit(events::EVENT_ERROR, format!("{}", e));
+                    streaming::StreamingResult {
+                        raw_segments: vec![],
+                        processed_segments: vec![],
+                    }
+                }
+                Err(e) => {
+                    log::error!("Streaming task join error: {}", e);
+                    streaming::StreamingResult {
+                        raw_segments: vec![],
+                        processed_segments: vec![],
+                    }
+                }
+            }
+        } else {
+            streaming::StreamingResult {
+                raw_segments: vec![],
+                processed_segments: vec![],
+            }
+        };
+
+        // 3. Press Enter if auto_enter (BEFORE clipboard restore — inject("") overwrites clipboard)
+        let auto_enter = {
+            let cfg = state
+                .config
+                .read()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            cfg.general.auto_enter
+        };
+        if auto_enter && !result.processed_segments.is_empty() {
+            let injector = Arc::clone(&state.text_injector);
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                injector.inject(
+                    "",
+                    &injection::InjectionOptions {
+                        auto_enter: true,
+                        clipboard_restore: false,
+                    },
+                )
+            })
+            .await;
+        }
+
+        // 4. Restore clipboard (AFTER Enter so inject("") doesn't overwrite the restore)
+        let saved = {
+            let mut cb = state
+                .saved_clipboard
+                .lock()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            cb.take()
+        };
+        restore_clipboard(saved).await;
+
+        // 5. History
+        if !result.processed_segments.is_empty() {
+            let raw_text = result.raw_segments.join(" ");
+            let final_text = result.processed_segments.join(" ");
+            let engine_id = state
+                .stt_engine
+                .lock()
+                .map(|e| e.id().to_string())
+                .unwrap_or_else(|_| "unknown".to_string());
+            let entry = history::store::HistoryEntry::new(
+                raw_text,
+                final_text,
+                engine_id,
+                None,
+                0,
+            );
+            if let Ok(mut h) = state.history.lock() {
+                let _ = h.add(entry);
+            }
+        }
+
+        reset_state(app, &state.is_recording, &state.recording);
+    } else {
+        // --- Batch mode (existing behavior) ---
+        let captured = {
+            let mut capture = state
+                .audio_capture
+                .lock()
+                .map_err(|e| error::AppError::Internal(e.to_string()))?;
+            capture.stop()?
+        };
+
+        set_processing_state(app, &state.recording, ProcessingStage::Transcribing)?;
+        let _ = tray::update_tray_icon(app, tray::TrayState::Processing);
+
+        let stt_engine = Arc::clone(&state.stt_engine);
+        let text_injector = Arc::clone(&state.text_injector);
+        let history = Arc::clone(&state.history);
+        let config_arc = Arc::clone(&state.config);
+        let recording = Arc::clone(&state.recording);
+        let is_recording = Arc::clone(&state.is_recording);
+        let llm_backend = Arc::clone(&state.llm_backend);
+        let app_clone = app.clone();
+
+        tauri::async_runtime::spawn(async move {
+            let result = run_pipeline(
+                &app_clone,
+                captured,
+                stt_engine,
+                text_injector,
+                history,
+                config_arc,
+                llm_backend,
+                &recording,
+            )
+            .await;
+
+            if let Err(e) = result {
+                log::error!("Pipeline error: {}", e);
+                let _ = app_clone.emit(events::EVENT_ERROR, format!("{}", e));
+            }
+
+            reset_state(&app_clone, &is_recording, &recording);
+        });
+    }
 
     Ok(())
 }
@@ -248,7 +427,10 @@ pub(crate) async fn run_pipeline(
     llm_backend: Arc<RwLock<Option<Arc<dyn LlmBackend>>>>,
     recording: &RwLock<RecordingState>,
 ) -> Result<(), error::AppError> {
+    let pipeline_start = std::time::Instant::now();
+
     // 1. Resample to 16kHz mono
+    let t0 = std::time::Instant::now();
     let samples_16k = tauri::async_runtime::spawn_blocking({
         let samples = captured.samples;
         let channels = captured.channels;
@@ -257,8 +439,10 @@ pub(crate) async fn run_pipeline(
     })
     .await
     .map_err(|e| error::AppError::Internal(format!("Task join error: {}", e)))??;
+    let resample_ms = t0.elapsed().as_millis();
 
-    // 2. Transcribe (CPU-bound)
+    // 2. Transcribe
+    let t1 = std::time::Instant::now();
     let stt_language = {
         let cfg = config
             .read()
@@ -277,19 +461,21 @@ pub(crate) async fn run_pipeline(
         if !stt.is_loaded() {
             return Err(error::AppError::Stt("No STT model loaded".to_string()));
         }
-        stt.transcribe(&samples_16k, stt_lang_for_transcribe.as_deref())
+        stt.transcribe(&samples_16k, stt_lang_for_transcribe.as_deref(), None)
     })
     .await
     .map_err(|e| error::AppError::Internal(format!("Task join error: {}", e)))??;
+    let transcribe_ms = t1.elapsed().as_millis();
 
     if transcription.text.is_empty() {
-        log::info!("Empty transcription, skipping");
+        log::info!("[batch] PERF empty transcription: resample={}ms transcribe={}ms", resample_ms, transcribe_ms);
         return Ok(());
     }
 
     // 3. Post-process (with LLM if configured)
     set_processing_state(app, recording, ProcessingStage::PostProcessing)?;
 
+    let t2 = std::time::Instant::now();
     // Extract config and backend BEFORE the .await (guards must not cross await)
     let pp_config = {
         let cfg = config
@@ -316,10 +502,12 @@ pub(crate) async fn run_pipeline(
         effective_language,
     )
     .await?;
+    let pipeline_pp_ms = t2.elapsed().as_millis();
 
     // 4. Inject
     set_processing_state(app, recording, ProcessingStage::Injecting)?;
 
+    let t3 = std::time::Instant::now();
     let options = {
         let cfg = config
             .read()
@@ -335,6 +523,17 @@ pub(crate) async fn run_pipeline(
     tauri::async_runtime::spawn_blocking(move || injector_clone.inject(&text_clone, &options))
         .await
         .map_err(|e| error::AppError::Internal(format!("Task join error: {}", e)))??;
+    let inject_ms = t3.elapsed().as_millis();
+
+    log::info!(
+        "[batch] PERF total={}ms | resample={}ms transcribe={}ms pipeline={}ms inject={}ms | text={:?}",
+        pipeline_start.elapsed().as_millis(),
+        resample_ms,
+        transcribe_ms,
+        pipeline_pp_ms,
+        inject_ms,
+        &transcription.text,
+    );
 
     // 5. History
     let entry = history::store::HistoryEntry::new(
@@ -498,6 +697,22 @@ async fn restore_clipboard(saved: Option<String>) {
     }
 }
 
+/// Create an STT engine based on the engine type string from config.
+/// Falls back to WhisperEngine if the requested engine is not available.
+fn create_stt_engine_from_config(
+    engine_type: &str,
+    use_gpu: bool,
+    thread_limit: Arc<RwLock<Option<u32>>>,
+) -> Box<dyn stt::SttEngine> {
+    if engine_type != "whisper" {
+        log::warn!(
+            "Unknown STT engine '{}', falling back to Whisper",
+            engine_type
+        );
+    }
+    Box::new(WhisperEngine::new(use_gpu, thread_limit))
+}
+
 /// Build a local LLM backend from config + model cache.
 /// Returns None if no model is configured or the model file is not downloaded.
 pub(crate) fn build_local_llm_backend(
@@ -549,34 +764,41 @@ pub(crate) fn build_local_llm_from_path(
 /// happens AFTER manage — in production the WebView loads instantly from
 /// bundled files and can invoke commands before setup finishes otherwise.
 fn do_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    log_startup_error("do_setup: starting");
+    log::info!("do_setup: starting");
 
     // Load config
     let mut config = persistence::load_config().unwrap_or_default();
-    log_startup_error("do_setup: config loaded");
+    log::info!("do_setup: config loaded");
 
     // Initialize history
     let history_path = history::store::history_path()?;
     let history_store = HistoryStore::new(history_path)?;
-    log_startup_error("do_setup: history ok");
+    log::info!("do_setup: history ok");
 
-    // Initialize STT engine
-    let stt_engine: Box<dyn stt::SttEngine> =
-        Box::new(WhisperEngine::new(config.general.gpu_acceleration));
-    log_startup_error("do_setup: stt engine ok");
+    // Shared STT thread limit — updated live when user changes slider
+    // (declared early because WhisperEngine needs it)
+    let stt_thread_limit = Arc::new(RwLock::new(config.general.stt_threads));
+
+    // Initialize STT engine (type depends on config — defaults to Whisper)
+    let stt_engine: Box<dyn stt::SttEngine> = create_stt_engine_from_config(
+        &config.stt.active_engine,
+        config.general.gpu_acceleration,
+        Arc::clone(&stt_thread_limit),
+    );
+    log::info!("do_setup: stt engine ({}) ok", config.stt.active_engine);
 
     // Shared flag: true while simulating keystrokes (Ctrl+C/V via enigo)
     let is_simulating_keys = Arc::new(AtomicBool::new(false));
 
     // Initialize text injector (shares is_simulating flag)
     let text_injector = create_injector(Arc::clone(&is_simulating_keys));
-    log_startup_error("do_setup: injector ok");
+    log::info!("do_setup: injector ok");
 
     // Initialize model cache (wrap in Arc<Mutex> early so we can use it
     // both before and after app.manage())
     let model_cache = ModelCache::new()?;
     let model_cache_arc = Arc::new(Mutex::new(model_cache));
-    log_startup_error("do_setup: model cache ok");
+    log::info!("do_setup: model cache ok");
 
     // Reconcile LLM config: if a local model_id is set and downloaded
     // but active_backend is None, auto-correct to Local so the backend
@@ -623,12 +845,15 @@ fn do_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         text_hotkey_config: Arc::clone(&text_hotkey_config),
         is_simulating_keys: Arc::clone(&is_simulating_keys),
         active_downloads: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        stt_thread_limit: Arc::clone(&stt_thread_limit),
+        streaming_handle: Arc::new(Mutex::new(None)),
+        saved_clipboard: Arc::new(Mutex::new(None)),
     };
 
     // Register state EARLY so frontend commands (get_settings, etc.) work
     // even if LLM backend init below is slow.
     let managed = app.manage(app_state);
-    log_startup_error(&format!("do_setup: app.manage() returned {}", managed));
+    log::info!("do_setup: app.manage() returned {}", managed);
 
     // Initialize LLM backend (potentially slow — Local spawns worker subprocess)
     {
@@ -760,21 +985,6 @@ fn do_setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Write a startup error to a log file for diagnosis.
-fn log_startup_error(msg: &str) {
-    if let Some(dir) = dirs::config_dir() {
-        let log_dir = dir.join("Voxai");
-        let _ = std::fs::create_dir_all(&log_dir);
-        let log_path = log_dir.join("startup_error.log");
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-        let entry = format!("[{}] {}\n", timestamp, msg);
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-            .and_then(|mut f| std::io::Write::write_all(&mut f, entry.as_bytes()));
-    }
-}
 
 /// Show a native error dialog on Windows (no external dependencies).
 #[cfg(windows)]

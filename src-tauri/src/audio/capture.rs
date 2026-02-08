@@ -1,9 +1,94 @@
 use std::sync::{Arc, Mutex};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, Stream, StreamConfig};
+use cpal::{Device, SampleFormat, Stream, StreamConfig};
 
 use crate::error::AppError;
+
+struct ResolvedDevice {
+    device: Device,
+    config: StreamConfig,
+    sample_format: SampleFormat,
+}
+
+fn resolve_input_device(device_name: Option<&str>) -> Result<ResolvedDevice, AppError> {
+    let host = cpal::default_host();
+
+    let device = match device_name {
+        Some(name) => host
+            .input_devices()?
+            .find(|d| d.description().map(|desc| desc.name() == name).unwrap_or(false))
+            .ok_or_else(|| AppError::Audio(format!("Device '{}' not found", name)))?,
+        None => host
+            .default_input_device()
+            .ok_or_else(|| AppError::Audio("No default input device".to_string()))?,
+    };
+
+    let supported_config = device.default_input_config()?;
+    let sample_format = supported_config.sample_format();
+    let config: StreamConfig = supported_config.into();
+
+    Ok(ResolvedDevice {
+        device,
+        config,
+        sample_format,
+    })
+}
+
+/// Build a cpal input stream that converts samples to f32 and calls `on_data`.
+fn build_stream(
+    resolved: &ResolvedDevice,
+    on_data: impl Fn(&[f32]) + Send + 'static,
+) -> Result<Stream, AppError> {
+    let err_fn = |err: cpal::StreamError| {
+        log::error!("Audio stream error: {}", err);
+    };
+
+    let stream = match resolved.sample_format {
+        SampleFormat::F32 => {
+            resolved.device.build_input_stream(
+                &resolved.config,
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    on_data(data);
+                },
+                err_fn,
+                None,
+            )?
+        }
+        SampleFormat::I16 => {
+            resolved.device.build_input_stream(
+                &resolved.config,
+                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                    let floats: Vec<f32> =
+                        data.iter().map(|&s| s as f32 / i16::MAX as f32).collect();
+                    on_data(&floats);
+                },
+                err_fn,
+                None,
+            )?
+        }
+        SampleFormat::I32 => {
+            resolved.device.build_input_stream(
+                &resolved.config,
+                move |data: &[i32], _: &cpal::InputCallbackInfo| {
+                    let floats: Vec<f32> =
+                        data.iter().map(|&s| s as f32 / i32::MAX as f32).collect();
+                    on_data(&floats);
+                },
+                err_fn,
+                None,
+            )?
+        }
+        _ => {
+            return Err(AppError::Audio(format!(
+                "Unsupported sample format: {:?}",
+                resolved.sample_format
+            )));
+        }
+    };
+
+    Ok(stream)
+}
 
 pub struct AudioCapture {
     stream: Option<Stream>,
@@ -22,83 +107,35 @@ impl AudioCapture {
         }
     }
 
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
     pub fn start(&mut self, device_name: Option<&str>) -> Result<(), AppError> {
-        let host = cpal::default_host();
+        let resolved = resolve_input_device(device_name)?;
 
-        let device = match device_name {
-            Some(name) => host
-                .input_devices()?
-                .find(|d| d.description().map(|desc| desc.name() == name).unwrap_or(false))
-                .ok_or_else(|| AppError::Audio(format!("Device '{}' not found", name)))?,
-            None => host
-                .default_input_device()
-                .ok_or_else(|| AppError::Audio("No default input device".to_string()))?,
-        };
-
-        let supported_config = device.default_input_config()?;
-        let sample_format = supported_config.sample_format();
-        let config: StreamConfig = supported_config.into();
-
-        self.sample_rate = config.sample_rate;
-        self.channels = config.channels;
+        self.sample_rate = resolved.config.sample_rate;
+        self.channels = resolved.config.channels;
 
         // Clear buffer
         {
-            let mut buf = self.buffer.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+            let mut buf = self
+                .buffer
+                .lock()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
             buf.clear();
         }
 
         let buffer = Arc::clone(&self.buffer);
-        let err_fn = |err: cpal::StreamError| {
-            log::error!("Audio stream error: {}", err);
-        };
-
-        let stream = match sample_format {
-            SampleFormat::F32 => {
-                device.build_input_stream(
-                    &config,
-                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut buf) = buffer.lock() {
-                            buf.extend_from_slice(data);
-                        }
-                    },
-                    err_fn,
-                    None,
-                )?
+        let stream = build_stream(&resolved, move |data: &[f32]| {
+            if let Ok(mut buf) = buffer.lock() {
+                buf.extend_from_slice(data);
             }
-            SampleFormat::I16 => {
-                let buffer = Arc::clone(&self.buffer);
-                device.build_input_stream(
-                    &config,
-                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut buf) = buffer.lock() {
-                            buf.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
-                        }
-                    },
-                    err_fn,
-                    None,
-                )?
-            }
-            SampleFormat::I32 => {
-                let buffer = Arc::clone(&self.buffer);
-                device.build_input_stream(
-                    &config,
-                    move |data: &[i32], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut buf) = buffer.lock() {
-                            buf.extend(data.iter().map(|&s| s as f32 / i32::MAX as f32));
-                        }
-                    },
-                    err_fn,
-                    None,
-                )?
-            }
-            _ => {
-                return Err(AppError::Audio(format!(
-                    "Unsupported sample format: {:?}",
-                    sample_format
-                )));
-            }
-        };
+        })?;
 
         stream.play()?;
         self.stream = Some(stream);
@@ -107,10 +144,53 @@ impl AudioCapture {
             "Audio capture started: {}Hz, {} channels, {:?}",
             self.sample_rate,
             self.channels,
-            sample_format
+            resolved.sample_format
         );
 
         Ok(())
+    }
+
+    /// Start capture in streaming mode. Returns an unbounded receiver of audio chunks.
+    /// Each chunk is a `Vec<f32>` of raw samples (possibly multi-channel, native sample rate).
+    pub fn start_streaming(
+        &mut self,
+        device_name: Option<&str>,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Vec<f32>>, AppError> {
+        let resolved = resolve_input_device(device_name)?;
+
+        self.sample_rate = resolved.config.sample_rate;
+        self.channels = resolved.config.channels;
+
+        // Clear buffer (still used as backup for stop())
+        {
+            let mut buf = self
+                .buffer
+                .lock()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            buf.clear();
+        }
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
+        let buffer = Arc::clone(&self.buffer);
+
+        let stream = build_stream(&resolved, move |data: &[f32]| {
+            if let Ok(mut buf) = buffer.lock() {
+                buf.extend_from_slice(data);
+            }
+            let _ = tx.send(data.to_vec());
+        })?;
+
+        stream.play()?;
+        self.stream = Some(stream);
+
+        log::info!(
+            "Audio capture started (streaming): {}Hz, {} channels, {:?}",
+            self.sample_rate,
+            self.channels,
+            resolved.sample_format
+        );
+
+        Ok(rx)
     }
 
     pub fn stop(&mut self) -> Result<CapturedAudio, AppError> {

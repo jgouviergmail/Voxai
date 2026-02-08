@@ -16,8 +16,7 @@ pub fn list_models(state: State<'_, AppState>) -> Result<Vec<ModelInfo>, AppErro
 
     let downloaded = cache.list_downloaded();
 
-    let models: Vec<ModelInfo> = registry::MODEL_CATALOG
-        .iter()
+    let models: Vec<ModelInfo> = registry::all_models()
         .map(|def| ModelInfo {
             id: def.id.to_string(),
             name: def.name.to_string(),

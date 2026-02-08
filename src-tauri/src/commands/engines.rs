@@ -26,9 +26,8 @@ pub fn list_engines(state: State<'_, AppState>) -> Result<Vec<EngineInfo>, AppEr
 
     let downloaded = cache.list_downloaded();
 
-    // STT models
-    let stt_models: Vec<EngineModelInfo> = registry::MODEL_CATALOG
-        .iter()
+    // Whisper STT models (ggml format)
+    let whisper_models: Vec<EngineModelInfo> = registry::all_models()
         .filter(|def| def.engine == "whisper")
         .map(|def| EngineModelInfo {
             id: def.id.to_string(),
@@ -41,8 +40,7 @@ pub fn list_engines(state: State<'_, AppState>) -> Result<Vec<EngineInfo>, AppEr
         .collect();
 
     // LLM models
-    let llm_models: Vec<EngineModelInfo> = registry::MODEL_CATALOG
-        .iter()
+    let llm_models: Vec<EngineModelInfo> = registry::all_models()
         .filter(|def| def.engine == "llm")
         .map(|def| EngineModelInfo {
             id: def.id.to_string(),
@@ -64,11 +62,11 @@ pub fn list_engines(state: State<'_, AppState>) -> Result<Vec<EngineInfo>, AppEr
     };
 
     let mut engines = vec![EngineInfo {
-        id: stt.id().to_string(),
-        name: stt.name().to_string(),
-        active: config.stt.active_engine == stt.id(),
-        loaded: stt.is_loaded(),
-        models: stt_models,
+        id: "whisper".to_string(),
+        name: "Whisper".to_string(),
+        active: config.stt.active_engine == "whisper",
+        loaded: stt.id() == "whisper" && stt.is_loaded(),
+        models: whisper_models,
     }];
 
     if !llm_models.is_empty() {
@@ -143,6 +141,7 @@ pub async fn set_active_model(
                 .stt_engine
                 .lock()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
+
             engine.load_model(&path)?;
         }
 
@@ -151,6 +150,7 @@ pub async fn set_active_model(
                 .config
                 .write()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
+            config.stt.active_engine = model_def.engine.to_string();
             config.stt.active_model = Some(model_id.clone());
             persistence::save_and_notify(&config, &state.app_handle)?;
         }

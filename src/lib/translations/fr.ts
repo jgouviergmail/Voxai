@@ -39,10 +39,20 @@ const fr: Record<string, string> = {
   "general.text_hotkey": "Raccourci traitement texte",
   "general.text_hotkey_enable": "Activer le raccourci traitement texte",
   "general.text_hotkey_desc": "Selectionnez du texte et appuyez sur le raccourci pour reformuler/traduire sur place",
+  "general.mode": "Mode",
+  "general.real_time": "Mode temps reel",
+  "general.real_time_desc": "Transcrire et injecter le texte progressivement pendant l'enregistrement",
+  "general.performance": "Performance",
+  "general.stt_threads": "Threads CPU (STT)",
+  "general.stt_threads_desc": "Nombre de threads CPU pour la reconnaissance vocale (Auto = laisser le moteur decider)",
+  "general.stt_threads_gpu_note": "Impact reduit quand le GPU est actif",
+  "general.stt_threads_auto": "Auto",
 
   // Overlay
   "overlay.reformulation": "Reformulation",
   "overlay.translation": "Traduction",
+  "overlay.real_time": "Temps reel",
+  "overlay.llm_latency_warn": "Le LLM ajoute de la latence par segment",
 
   // Onglet Moteurs
   "engines.loaded": "Charge",
@@ -66,6 +76,7 @@ const fr: Record<string, string> = {
   "model.desc.whisper-small": "Meilleure precision, vitesse raisonnable. ~2-3s de traitement.",
   "model.desc.whisper-medium": "Haute precision. ~5-8s de traitement.",
   "model.desc.whisper-large-v3": "Meilleure precision. ~10-15s de traitement. Necessite 4 Go+ de RAM.",
+  "model.desc.distil-whisper-large-v3": "6x plus rapide que Large v3, precision equivalente. Anglais uniquement.",
   "model.desc.gemma-3-1b-q4": "Google Gemma 3. 140+ langues, contexte 128K, tres rapide sur CPU.",
   "model.desc.qwen3-1.7b-q4": "100+ langues, mode raisonnement. Rapide et multilingue.",
   "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4) (le meilleur compromis vitesse/fiabilite)",

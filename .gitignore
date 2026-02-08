@@ -44,7 +44,7 @@ npm-debug.log*
 # Vite
 *.local
 
-# Build artifacts (worker binaries prepared for bundling)
+# Build artifacts (worker binary + CUDA DLLs prepared for bundling)
 src-tauri/binaries/*.exe
-BUILD.txt
+src-tauri/binaries/*.dll
 TODO.txt

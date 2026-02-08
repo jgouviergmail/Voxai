@@ -1,7 +1,8 @@
 use std::path::Path;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use whisper_rs::{get_lang_str, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use whisper_rs::{get_lang_str, FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState};
 
 use super::{Segment, SttEngine, TranscriptionResult};
 use crate::error::AppError;
@@ -77,12 +78,16 @@ pub fn language_name_from_code(code: &str) -> Option<&'static str> {
 
 pub struct WhisperEngine {
     context: Option<WhisperContext>,
+    /// Cached WhisperState for reuse across streaming segments.
+    /// Avoids re-allocating ~200MB of compute buffers per segment.
+    cached_state: Mutex<Option<WhisperState>>,
     use_gpu: bool,
+    thread_limit: Arc<RwLock<Option<u32>>>,
 }
 
 impl WhisperEngine {
-    pub fn new(use_gpu: bool) -> Self {
-        Self { context: None, use_gpu }
+    pub fn new(use_gpu: bool, thread_limit: Arc<RwLock<Option<u32>>>) -> Self {
+        Self { context: None, cached_state: Mutex::new(None), use_gpu, thread_limit }
     }
 }
 
@@ -96,6 +101,11 @@ impl SttEngine for WhisperEngine {
     }
 
     fn load_model(&mut self, model_path: &Path) -> Result<(), AppError> {
+        // Clear cached state from previous model
+        if let Ok(mut guard) = self.cached_state.lock() {
+            *guard = None;
+        }
+
         let path_str = model_path
             .to_str()
             .ok_or_else(|| AppError::Stt("Invalid model path".to_string()))?;
@@ -116,6 +126,10 @@ impl SttEngine for WhisperEngine {
     }
 
     fn unload_model(&mut self) {
+        // Clear cached state before context
+        if let Ok(mut guard) = self.cached_state.lock() {
+            *guard = None;
+        }
         self.context = None;
         log::info!("Whisper model unloaded");
     }
@@ -124,7 +138,7 @@ impl SttEngine for WhisperEngine {
         self.context.is_some()
     }
 
-    fn transcribe(&self, samples: &[f32], language: Option<&str>) -> Result<TranscriptionResult, AppError> {
+    fn transcribe(&self, samples: &[f32], language: Option<&str>, initial_prompt: Option<&str>) -> Result<TranscriptionResult, AppError> {
         let ctx = self
             .context
             .as_ref()
@@ -132,17 +146,53 @@ impl SttEngine for WhisperEngine {
 
         let start = Instant::now();
 
-        // Create a temporary WhisperState for this transcription
-        // (WhisperState is NOT Send+Sync, but WhisperContext IS)
-        let mut state = ctx.create_state().map_err(|e| {
-            AppError::Stt(format!("Failed to create whisper state: {}", e))
-        })?;
+        // Reuse cached state or create a new one.
+        // Avoids re-allocating ~200MB of compute buffers per streaming segment.
+        let mut state_guard = self.cached_state.lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut state = match state_guard.take() {
+            Some(s) => s,
+            None => ctx.create_state().map_err(|e| {
+                AppError::Stt(format!("Failed to create whisper state: {}", e))
+            })?,
+        };
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(language);
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
+
+        // CPU thread limit (live-updated via Arc<RwLock>)
+        if let Some(n) = self.thread_limit.read().ok().and_then(|g| *g) {
+            params.set_n_threads(n as i32);
+        }
+
+        // Additional optimizations (~10-15% CPU gain)
+        params.set_suppress_blank(true);     // Skip blank/silence tokens
+        params.set_suppress_nst(true);       // Skip non-speech tokens ([music], [applause]...)
+        params.set_no_context(true);         // No cross-segment context (uses initial_prompt instead)
+        params.set_temperature(0.0);         // Deterministic decoding
+
+        // For short audio (< 30s at 16kHz), disable timestamps entirely.
+        // Without timestamp tokens, whisper.cpp's "single timestamp ending -
+        // skip entire chunk" heuristic can never trigger.  single_segment(true)
+        // alone is NOT enough — the skip happens via `continue` before the
+        // single_segment `break` is reached.
+        if samples.len() < 480_000 {
+            params.set_single_segment(true);
+            params.set_no_timestamps(true);
+            params.set_temperature_inc(0.0); // Disable fallback retries for streaming
+        }
+
+        // Provide previous transcription as decoder prompt context.
+        // Helps Whisper maintain consistency across streaming segments
+        // (e.g., "première phrase" context → more likely to produce "deuxième phrase").
+        if let Some(prompt) = initial_prompt {
+            if !prompt.is_empty() {
+                params.set_initial_prompt(prompt);
+            }
+        }
 
         state.full(params, samples)?;
 
@@ -183,6 +233,9 @@ impl SttEngine for WhisperEngine {
             duration_ms,
             detected_lang
         );
+
+        // Cache state for next call (avoids ~200MB re-allocation)
+        *state_guard = Some(state);
 
         Ok(TranscriptionResult {
             text: text.trim().to_string(),

@@ -21,3 +21,8 @@ export const onSettingsUpdated = (cb: () => void): Promise<UnlistenFn> =>
 
 export const onError = (cb: (message: string) => void): Promise<UnlistenFn> =>
   listen<string>("app-error", (e) => cb(e.payload));
+
+export const onTranscriptionPartial = (
+  cb: (text: string) => void,
+): Promise<UnlistenFn> =>
+  listen<string>("transcription-partial", (e) => cb(e.payload));

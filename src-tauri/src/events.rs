@@ -6,6 +6,7 @@ pub const EVENT_TRANSCRIPTION_COMPLETE: &str = "transcription-complete";
 pub const EVENT_DOWNLOAD_PROGRESS: &str = "download-progress";
 pub const EVENT_SETTINGS_UPDATED: &str = "settings-updated";
 pub const EVENT_ERROR: &str = "app-error";
+pub const EVENT_TRANSCRIPTION_PARTIAL: &str = "transcription-partial";
 
 // Event payload types
 #[derive(Debug, Clone, Serialize)]

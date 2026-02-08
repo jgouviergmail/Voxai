@@ -1,0 +1,38 @@
+DEV
+
+cd d:\Developpement\Voxai
+
+---------------------------------------------
+
+Dev CPU :
+
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+$env:LIBCLANG_PATH = "C:\Program Files\Unity\Hub\Editor\6000.3.6f1\Editor\Data\PlaybackEngines\WebGLSupport\BuildTools\Emscripten\llvm"
+npx tauri dev
+
+Dev CUDA :
+
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+$env:LIBCLANG_PATH = "C:\Program Files\Unity\Hub\Editor\6000.3.6f1\Editor\Data\PlaybackEngines\WebGLSupport\BuildTools\Emscripten\llvm"
+$env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+npx tauri dev -- --features cuda
+
+Build CPU :
+
+$env:PATH = "$env:USERPROFILE\.cargo\bin;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;$env:PATH"
+$env:LIBCLANG_PATH = "C:\Program Files\Unity\Hub\Editor\6000.3.6f1\Editor\Data\PlaybackEngines\WebGLSupport\BuildTools\Emscripten\llvm"
+npx tauri build
+
+Build CUDA :
+
+$env:PATH = "$env:USERPROFILE\.cargo\bin;C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;$env:PATH"
+$env:LIBCLANG_PATH = "C:\Program Files\Unity\Hub\Editor\6000.3.6f1\Editor\Data\PlaybackEngines\WebGLSupport\BuildTools\Emscripten\llvm"
+$env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+npx tauri build --features cuda
+
+Ou simplement via npm (auto-détection de tout) :
+
+npm run dev:full                    # dev CPU
+npm run build:windows               # build CPU
+npm run build:windows:cuda          # build CUDA
+npm run build:all                   # les deux d'un coup

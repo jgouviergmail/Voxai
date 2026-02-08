@@ -42,6 +42,18 @@ pub trait TextInjector: Send + Sync {
             "replace_selection not supported on this platform".into(),
         ))
     }
+
+    /// Inject text at cursor via clipboard+paste, WITHOUT Enter and WITHOUT clipboard restore.
+    /// Used by streaming mode — clipboard is saved/restored at session level, not per-segment.
+    fn inject_no_enter(&self, text: &str) -> Result<(), AppError> {
+        self.inject(
+            text,
+            &InjectionOptions {
+                auto_enter: false,
+                clipboard_restore: false,
+            },
+        )
+    }
 }
 
 pub fn create_injector(is_simulating: Arc<AtomicBool>) -> Box<dyn TextInjector> {

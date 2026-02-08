@@ -1,7 +1,5 @@
 use serde::Serialize;
 
-use crate::error::AppError;
-
 #[derive(Debug, Clone, Serialize)]
 pub struct NvidiaInfo {
     pub detected: bool,
@@ -11,7 +9,14 @@ pub struct NvidiaInfo {
 }
 
 #[tauri::command]
-pub fn detect_nvidia() -> Result<NvidiaInfo, AppError> {
+pub fn detect_cpu_count() -> u32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4)
+}
+
+#[tauri::command]
+pub fn detect_nvidia() -> Result<NvidiaInfo, crate::error::AppError> {
     let output = std::process::Command::new("nvidia-smi")
         .args([
             "--query-gpu=name,driver_version,memory.total",

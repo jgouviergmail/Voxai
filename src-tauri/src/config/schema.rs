@@ -27,6 +27,12 @@ pub struct GeneralConfig {
     /// None = feature disabled.
     #[serde(default)]
     pub text_hotkey: Option<HotkeyConfig>,
+    /// Real-time mode: transcribe and inject text progressively during recording.
+    #[serde(default)]
+    pub real_time: bool,
+    /// Number of CPU threads for STT. None = auto (engine decides).
+    #[serde(default)]
+    pub stt_threads: Option<u32>,
 }
 
 fn default_ui_language() -> String {
@@ -149,6 +155,8 @@ impl Default for AppConfig {
                 gpu_acceleration: false,
                 ui_language: "en".to_string(),
                 text_hotkey: None,
+                real_time: false,
+                stt_threads: None,
             },
             stt: SttConfig {
                 active_engine: "whisper".to_string(),

@@ -17,6 +17,8 @@ export interface GeneralConfig {
   gpu_acceleration: boolean;
   ui_language: string;
   text_hotkey: HotkeyConfig | null;
+  real_time: boolean;
+  stt_threads: number | null;
 }
 
 export interface HotkeyConfig {

@@ -39,10 +39,20 @@ const en: Record<string, string> = {
   "general.text_hotkey": "Text processing hotkey",
   "general.text_hotkey_enable": "Enable text processing hotkey",
   "general.text_hotkey_desc": "Select text and press shortcut to reformulate/translate in place",
+  "general.mode": "Mode",
+  "general.real_time": "Real-time mode",
+  "general.real_time_desc": "Transcribe and inject text progressively during recording",
+  "general.performance": "Performance",
+  "general.stt_threads": "CPU threads (STT)",
+  "general.stt_threads_desc": "Number of CPU threads for voice recognition (Auto = let engine decide)",
+  "general.stt_threads_gpu_note": "Reduced impact when GPU is active",
+  "general.stt_threads_auto": "Auto",
 
   // Overlay
   "overlay.reformulation": "Reformulation",
   "overlay.translation": "Translation",
+  "overlay.real_time": "Real-time",
+  "overlay.llm_latency_warn": "LLM adds latency per segment",
 
   // Engines Tab
   "engines.loaded": "Loaded",
@@ -66,6 +76,7 @@ const en: Record<string, string> = {
   "model.desc.whisper-small": "Better accuracy, reasonable speed. ~2-3s processing.",
   "model.desc.whisper-medium": "High accuracy. ~5-8s processing.",
   "model.desc.whisper-large-v3": "Best accuracy. ~10-15s processing. Requires 4GB+ RAM.",
+  "model.desc.distil-whisper-large-v3": "6x faster than Large v3, within 1% WER. English only.",
   "model.desc.gemma-3-1b-q4": "Google Gemma 3. 140+ languages, 128K context, very fast on CPU.",
   "model.desc.qwen3-1.7b-q4": "100+ languages, thinking mode. Fast and multilingual.",
   "model.name.phi-4-mini-q4": "Phi-4 Mini (Q4) (best speed/accuracy trade-off)",

@@ -109,6 +109,15 @@ pub fn update_settings(
         *thk = config.general.text_hotkey.clone();
     }
 
+    // Update shared STT thread limit (live-read by WhisperEngine)
+    {
+        let mut tl = state
+            .stt_thread_limit
+            .write()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        *tl = config.general.stt_threads;
+    }
+
     // Notify frontend AFTER all state is consistent (config + backend + hotkey)
     persistence::notify_settings_updated(&state.app_handle);
 

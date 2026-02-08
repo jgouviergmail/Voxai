@@ -27,7 +27,7 @@ serde_json = "1"
 
 # Async
 async-trait = "0.1"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "sync"] }
 
 # Error handling
 thiserror = "2"
@@ -36,7 +36,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
-env_logger = "0.11"
+fern = "0.7"
 dirs = "6"
 
 # Audio
@@ -56,10 +56,11 @@ enigo = "0.6"
 arboard = "3"
 
 # Hotkey
-rdev = "0.5"
+rdev = { version = "0.5", features = ["unstable_grab"] }
 
 # Model management
 hf-hub = { version = "0.4", features = ["tokio"] }
 reqwest = { version = "0.12", features = ["stream"] }
 futures-util = "0.3"
+
 

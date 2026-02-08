@@ -11,6 +11,7 @@ export default function Overlay() {
   const [expanded, setExpanded] = createSignal(false);
   const [config, setConfig] = createSignal<AppConfig | null>(null);
   const [languages, setLanguages] = createSignal<LanguageInfo[]>([]);
+  const [partialText, setPartialText] = createSignal("");
 
   const saveOverlay = async (updater: (c: AppConfig) => void) => {
     const current = config();
@@ -45,7 +46,17 @@ export default function Overlay() {
 
     // Listen for recording state changes
     unlistens.push(
-      await listen<RecordingState>("recording-state-changed", (e) => setState(e.payload)),
+      await listen<RecordingState>("recording-state-changed", (e) => {
+        setState(e.payload);
+        if (e.payload.kind === "Idle") setPartialText("");
+      }),
+    );
+
+    // Listen for partial transcription (streaming mode)
+    unlistens.push(
+      await listen<string>("transcription-partial", (e) => {
+        setPartialText(e.payload);
+      }),
     );
 
     // Listen for settings changes (from main window)
@@ -204,6 +215,36 @@ export default function Overlay() {
               </select>
             </Show>
           </div>
+
+          {/* Real-time row */}
+          <div class="flex items-center gap-2">
+            <span class="w-20 shrink-0">{i18n.t("overlay.real_time")}</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                class="sr-only peer"
+                checked={config()!.general.real_time}
+                onChange={(e) =>
+                  saveOverlay((c) => { c.general.real_time = e.currentTarget.checked; })
+                }
+              />
+              <div class="w-7 h-4 bg-gray-700 rounded-full peer peer-checked:bg-blue-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3" />
+            </label>
+          </div>
+
+          {/* LLM latency warning */}
+          <Show when={config()!.general.real_time && (config()!.postprocessing.reformulation.enabled || config()!.postprocessing.translation.enabled)}>
+            <div class="rounded px-2 py-1 bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 text-[10px]">
+              {i18n.t("overlay.llm_latency_warn")}
+            </div>
+          </Show>
+        </div>
+      </Show>
+
+      {/* Streaming partial text feedback */}
+      <Show when={config()?.general.real_time && state().kind !== "Idle" && partialText()}>
+        <div class="mt-1 rounded-lg bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 p-2 shadow-lg text-xs text-gray-200 max-h-24 overflow-y-auto pointer-events-none">
+          {partialText()}
         </div>
       </Show>
     </div>

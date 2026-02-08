@@ -196,6 +196,16 @@ fn main() {
     let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
         .expect("Failed to load model");
 
+    // Log CUDA status so we can confirm GPU acceleration is actually active
+    if gpu_layers > 0 {
+        #[cfg(feature = "cuda")]
+        eprintln!("[llm-worker] Model loaded with {} GPU layers (CUDA ENABLED)", gpu_layers);
+        #[cfg(not(feature = "cuda"))]
+        eprintln!("[llm-worker] WARNING: --gpu-layers {} requested but CUDA not compiled in! Running on CPU.", gpu_layers);
+    } else {
+        eprintln!("[llm-worker] Model loaded (CPU mode)");
+    }
+
     // Create context once — reused across all requests (cleared via clear_kv_cache)
     let ctx_params = LlamaContextParams::default()
         .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()));

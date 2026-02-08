@@ -34,6 +34,14 @@ pub struct AppState {
     pub is_simulating_keys: Arc<AtomicBool>,
     /// Cancel tokens for active model downloads. Key = model_id.
     pub active_downloads: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
+    /// Shared STT thread limit — updated live when user changes slider.
+    pub stt_thread_limit: Arc<RwLock<Option<u32>>>,
+    /// Handle of the streaming task (joined on stop).
+    pub streaming_handle: Arc<Mutex<Option<
+        tauri::async_runtime::JoinHandle<Result<crate::streaming::StreamingResult, crate::error::AppError>>
+    >>>,
+    /// Clipboard content saved at the start of streaming, restored at the end.
+    pub saved_clipboard: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
