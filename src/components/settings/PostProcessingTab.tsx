@@ -14,6 +14,7 @@ import Toggle from "../ui/Toggle";
 import Select from "../ui/Select";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
+import Section from "../ui/Section";
 import { appStore } from "../../lib/stores";
 import { i18n } from "../../lib/i18n";
 import { BUILTIN_STYLES } from "../../lib/constants";
@@ -207,21 +208,11 @@ export default function PostProcessingTab() {
   const llmAvailable = () => llmStatus()?.available === true;
 
   const isDark = () => appStore.theme() === "dark";
-  const cardBg = () => (isDark() ? "bg-gray-800" : "bg-gray-50");
-  const borderClass = () =>
-    isDark() ? "border-gray-800" : "border-gray-200";
-  const headingColor = () =>
-    isDark() ? "text-gray-400" : "text-gray-500";
-  const warningBg = () =>
-    isDark() ? "bg-yellow-900/30 text-yellow-300 border-yellow-800" : "bg-yellow-50 text-yellow-700 border-yellow-200";
 
   return (
-    <div class="space-y-6">
-      {/* Basic post-processing */}
-      <div>
-        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          {i18n.t("pp.text_cleanup")}
-        </h3>
+    <div class="space-y-4">
+      {/* Text Cleanup */}
+      <Section title={i18n.t("pp.text_cleanup")}>
         <Toggle
           label={i18n.t("pp.auto_capitalize")}
           description={i18n.t("pp.auto_capitalize_desc")}
@@ -234,33 +225,32 @@ export default function PostProcessingTab() {
           checked={config().postprocessing.smart_spacing}
           onChange={(v) => save((c) => (c.postprocessing.smart_spacing = v))}
         />
-      </div>
+      </Section>
 
-      {/* LLM Status */}
-      <div class={`border-t ${borderClass()} pt-4`}>
-        <div class="flex items-center justify-between mb-2">
-          <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider`}>
-            {i18n.t("pp.llm_backend")}
-          </h3>
+      {/* LLM Backend */}
+      <Section
+        title={i18n.t("pp.llm_backend")}
+        action={
           <Button size="sm" variant="secondary" onClick={checkStatus}>
             {i18n.t("pp.refresh")}
           </Button>
-        </div>
+        }
+      >
         <Show
           when={llmStatus()}
           fallback={
-            <p class="text-xs text-gray-500">{i18n.t("pp.checking_status")}</p>
+            <p class={`text-xs ${isDark() ? "text-white/44" : "text-black/40"}`}>{i18n.t("pp.checking_status")}</p>
           }
         >
           {(status) => (
-            <div class={`${cardBg()} rounded-lg p-3 text-sm`}>
+            <div class={`rounded-lg p-3 text-sm ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
               <div class="flex items-center gap-2">
                 <div
                   class={`w-2 h-2 rounded-full ${
-                    status().available ? "bg-green-500" : "bg-red-500"
+                    status().available ? "bg-emerald-400" : "bg-red-400"
                   }`}
                 />
-                <span>
+                <span class={isDark() ? "text-white/92" : "text-black/88"}>
                   {status().backend_name}:{" "}
                   {status().available ? i18n.t("pp.connected") : i18n.t("pp.unavailable")}
                 </span>
@@ -327,19 +317,16 @@ export default function PostProcessingTab() {
         </Show>
 
         <Show when={config().llm.active_backend === "Local"}>
-          <div class={`${cardBg()} rounded-lg p-3 text-sm`}>
-            <p class={isDark() ? "text-gray-400" : "text-gray-500"}>
+          <div class={`rounded-lg p-3 text-sm ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
+            <p class={isDark() ? "text-white/64" : "text-black/60"}>
               {i18n.t("pp.local_info")}
             </p>
           </div>
         </Show>
-      </div>
+      </Section>
 
       {/* Translation */}
-      <div class={`border-t ${borderClass()} pt-4`}>
-        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          {i18n.t("pp.translation")}
-        </h3>
+      <Section title={i18n.t("pp.translation")}>
         <Toggle
           label={i18n.t("pp.enable_translation")}
           description={i18n.t("pp.enable_translation_desc")}
@@ -350,7 +337,11 @@ export default function PostProcessingTab() {
           }
         />
         <Show when={!llmAvailable()}>
-          <p class={`text-xs rounded px-2 py-1 mt-1 border ${warningBg()}`}>
+          <p class={`text-xs rounded px-2 py-1 mt-1 border ${
+            isDark()
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              : "bg-amber-50 text-amber-600 border-amber-200"
+          }`}>
             {i18n.t("pp.requires_llm")}
           </p>
         </Show>
@@ -371,13 +362,10 @@ export default function PostProcessingTab() {
             }
           />
         </Show>
-      </div>
+      </Section>
 
       {/* Reformulation */}
-      <div class={`border-t ${borderClass()} pt-4`}>
-        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          {i18n.t("pp.reformulation")}
-        </h3>
+      <Section title={i18n.t("pp.reformulation")}>
         <Toggle
           label={i18n.t("pp.enable_reformulation")}
           description={i18n.t("pp.enable_reformulation_desc")}
@@ -388,16 +376,20 @@ export default function PostProcessingTab() {
           }
         />
         <Show when={!llmAvailable()}>
-          <p class={`text-xs rounded px-2 py-1 mt-1 border ${warningBg()}`}>
+          <p class={`text-xs rounded px-2 py-1 mt-1 border ${
+            isDark()
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              : "bg-amber-50 text-amber-600 border-amber-200"
+          }`}>
             {i18n.t("pp.requires_llm")}
           </p>
         </Show>
         <Show when={config().postprocessing.reformulation.enabled}>
-          {/* Style radio list — full row is clickable */}
+          {/* Style radio list -- full row is clickable */}
           <div class="py-2">
-            <label class="block text-sm font-medium mb-1">{i18n.t("pp.style")}</label>
+            <label class={`block text-sm font-medium mb-1 ${isDark() ? "text-white/92" : "text-black/88"}`}>{i18n.t("pp.style")}</label>
             <div class={`rounded-lg border overflow-hidden ${
-              isDark() ? "border-gray-700" : "border-gray-200"
+              isDark() ? "border-border-default" : "border-border-default-lt"
             }`}>
               <For each={[
                 { value: "Cleaned", label: i18n.t("pp.style_cleaned") },
@@ -416,8 +408,8 @@ export default function PostProcessingTab() {
                       type="button"
                       class={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 border-b last:border-b-0 transition-colors cursor-pointer ${
                         isDark()
-                          ? `border-gray-700 hover:bg-gray-700 ${isActive() ? "bg-gray-700" : ""}`
-                          : `border-gray-100 hover:bg-gray-100 ${isActive() ? "bg-blue-50" : ""}`
+                          ? `border-border-subtle hover:bg-white/5 ${isActive() ? "bg-accent-muted" : ""}`
+                          : `border-border-subtle-lt hover:bg-black/3 ${isActive() ? "bg-blue-50" : ""}`
                       }`}
                       onClick={() => {
                         save((c) => {
@@ -429,10 +421,10 @@ export default function PostProcessingTab() {
                     >
                       <span class={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
                         isActive()
-                          ? "border-blue-500 bg-blue-500"
-                          : isDark() ? "border-gray-500" : "border-gray-400"
+                          ? "border-accent bg-accent"
+                          : isDark() ? "border-white/20" : "border-black/20"
                       }`} />
-                      <span>{opt.label}</span>
+                      <span class={isDark() ? "text-white/92" : "text-black/88"}>{opt.label}</span>
                     </button>
                   );
                 }}
@@ -440,29 +432,29 @@ export default function PostProcessingTab() {
             </div>
           </div>
 
-          {/* Prompt viewer — only shown for custom styles */}
+          {/* Prompt viewer -- only shown for custom styles */}
           <Show when={!isBuiltinStyle() && promptPreview()}>
-            <div class={`${cardBg()} rounded-lg p-3 mt-2 space-y-2`}>
-              <span class={`text-xs font-semibold uppercase tracking-wider ${headingColor()}`}>
+            <div class={`rounded-lg p-3 mt-2 space-y-2 ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
+              <span class={`text-xs font-semibold uppercase tracking-wider ${isDark() ? "text-white/44" : "text-black/40"}`}>
                 {i18n.t("pp.prompt")}
               </span>
               <div class="space-y-1 text-sm">
                 <div>
-                  <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.system_prompt")}</span>
-                  <p class="mt-0.5">{promptPreview()?.system}</p>
+                  <span class={`text-xs font-medium ${isDark() ? "text-white/44" : "text-black/40"}`}>{i18n.t("pp.system_prompt")}</span>
+                  <p class={`mt-0.5 ${isDark() ? "text-white/92" : "text-black/88"}`}>{promptPreview()?.system}</p>
                 </div>
                 <div>
-                  <span class={`text-xs font-medium ${headingColor()}`}>{i18n.t("pp.instruction")}</span>
-                  <p class="mt-0.5">{promptPreview()?.instruction}</p>
+                  <span class={`text-xs font-medium ${isDark() ? "text-white/44" : "text-black/40"}`}>{i18n.t("pp.instruction")}</span>
+                  <p class={`mt-0.5 ${isDark() ? "text-white/92" : "text-black/88"}`}>{promptPreview()?.instruction}</p>
                 </div>
               </div>
             </div>
           </Show>
 
           {/* Custom styles CRUD */}
-          <div class={`border-t ${borderClass()} pt-3 mt-3`}>
+          <div class={`border-t pt-3 mt-3 ${isDark() ? "border-border-default" : "border-border-default-lt"}`}>
             <div class="flex items-center justify-between mb-2">
-              <span class={`text-xs font-semibold uppercase tracking-wider ${headingColor()}`}>
+              <span class={`text-xs font-semibold uppercase tracking-wider ${isDark() ? "text-white/44" : "text-black/40"}`}>
                 {i18n.t("pp.custom_styles")}
               </span>
               <Button size="sm" variant="secondary" onClick={() => setShowNewCustom(!showNewCustom())}>
@@ -472,27 +464,27 @@ export default function PostProcessingTab() {
 
             {/* New custom prompt form */}
             <Show when={showNewCustom()}>
-              <div class={`${cardBg()} rounded-lg p-3 space-y-2 mb-2`}>
+              <div class={`rounded-lg p-3 space-y-2 mb-2 ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
                 <Input label={i18n.t("pp.name")} value={newCustomName()} onChange={setNewCustomName} placeholder="e.g. Poetic" />
                 <div>
-                  <label class="block text-xs font-medium mb-1">{i18n.t("pp.system_prompt")}</label>
+                  <label class={`block text-xs font-medium mb-1 ${isDark() ? "text-white/92" : "text-black/88"}`}>{i18n.t("pp.system_prompt")}</label>
                   <textarea
-                    class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
+                    class={`w-full rounded-md px-3 py-2 text-sm border resize-none h-16 focus:outline-none focus:ring-2 focus:ring-accent-glow focus:border-accent ${
                       isDark()
-                        ? "bg-gray-900 border-gray-700 text-gray-100"
-                        : "bg-white border-gray-300 text-gray-900"
+                        ? "bg-surface-base border-border-default text-white/92"
+                        : "bg-white border-border-default-lt text-black/88"
                     }`}
                     value={newCustomSystem()}
                     onInput={(e) => setNewCustomSystem(e.currentTarget.value)}
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-medium mb-1">{i18n.t("pp.instruction")}</label>
+                  <label class={`block text-xs font-medium mb-1 ${isDark() ? "text-white/92" : "text-black/88"}`}>{i18n.t("pp.instruction")}</label>
                   <textarea
-                    class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
+                    class={`w-full rounded-md px-3 py-2 text-sm border resize-none h-16 focus:outline-none focus:ring-2 focus:ring-accent-glow focus:border-accent ${
                       isDark()
-                        ? "bg-gray-900 border-gray-700 text-gray-100"
-                        : "bg-white border-gray-300 text-gray-900"
+                        ? "bg-surface-base border-border-default text-white/92"
+                        : "bg-white border-border-default-lt text-black/88"
                     }`}
                     value={newCustomInstruction()}
                     onInput={(e) => setNewCustomInstruction(e.currentTarget.value)}
@@ -511,12 +503,12 @@ export default function PostProcessingTab() {
             {/* Existing custom prompts list */}
             <For each={customPrompts()}>
               {(cp) => (
-                <div class={`${cardBg()} rounded-lg p-3 mb-2`}>
+                <div class={`rounded-lg p-3 mb-2 ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
                   <Show when={editingCustomId() === cp.id} fallback={
                     <div class="flex items-center justify-between">
                       <div>
-                        <span class="text-sm font-medium">{cp.name}</span>
-                        <p class={`text-xs mt-0.5 ${headingColor()}`}>{cp.instruction.slice(0, 60)}...</p>
+                        <span class={`text-sm font-medium ${isDark() ? "text-white/92" : "text-black/88"}`}>{cp.name}</span>
+                        <p class={`text-xs mt-0.5 ${isDark() ? "text-white/44" : "text-black/40"}`}>{cp.instruction.slice(0, 60)}...</p>
                       </div>
                       <div class="flex gap-1">
                         <Button size="sm" variant="secondary" onClick={() => setEditingCustomId(cp.id)}>
@@ -539,22 +531,19 @@ export default function PostProcessingTab() {
               )}
             </For>
             <Show when={customPrompts().length === 0 && !showNewCustom()}>
-              <p class={`text-xs ${headingColor()}`}>{i18n.t("pp.no_custom")}</p>
+              <p class={`text-xs ${isDark() ? "text-white/44" : "text-black/40"}`}>{i18n.t("pp.no_custom")}</p>
             </Show>
           </div>
         </Show>
-      </div>
+      </Section>
 
-      {/* Test zone */}
-      <div class={`border-t ${borderClass()} pt-4`}>
-        <h3 class={`text-sm font-semibold ${headingColor()} uppercase tracking-wider mb-2`}>
-          {i18n.t("pp.test_zone")}
-        </h3>
+      {/* Test Zone */}
+      <Section title={i18n.t("pp.test_zone")}>
         <textarea
-          class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-20 ${
+          class={`w-full rounded-md px-3 py-2 text-sm border resize-none h-20 focus:outline-none focus:ring-2 focus:ring-accent-glow focus:border-accent ${
             isDark()
-              ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-600"
-              : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+              ? "bg-surface-base border-border-default text-white/92 placeholder-white/20"
+              : "bg-white border-border-default-lt text-black/88 placeholder-black/30"
           }`}
           placeholder={i18n.t("pp.test_placeholder")}
           value={testInput()}
@@ -613,13 +602,13 @@ export default function PostProcessingTab() {
           </Button>
         </div>
         <Show when={testOutput()}>
-          <div class={`${cardBg()} rounded-lg p-3 mt-2 text-sm`}>
+          <div class={`rounded-lg p-3 mt-2 text-sm ${isDark() ? "bg-white/5 text-white/92" : "bg-surface-base-light text-black/88"}`}>
             {testOutput()}
           </div>
         </Show>
         <Show when={pipelineResult()}>
           {(result) => (
-            <div class={`${cardBg()} rounded-lg p-3 mt-2 text-sm space-y-2`}>
+            <div class={`rounded-lg p-3 mt-2 text-sm space-y-2 ${isDark() ? "bg-white/5" : "bg-surface-base-light"}`}>
               <PipelineStep label={i18n.t("pp.step_input")} text={result().input} isDark={isDark} />
               <PipelineStep label={i18n.t("pp.step_capitalize")} text={result().after_capitalize} isDark={isDark} />
               <PipelineStep label={i18n.t("pp.step_spacing")} text={result().after_spacing} isDark={isDark} />
@@ -630,14 +619,14 @@ export default function PostProcessingTab() {
                 <PipelineStep label={i18n.t("pp.step_translation")} text={result().after_translation!} isDark={isDark} />
               </Show>
               <PipelineStep label={i18n.t("pp.step_substitutions")} text={result().after_substitutions} isDark={isDark} />
-              <div class={`pt-2 border-t ${isDark() ? "border-gray-700" : "border-gray-200"}`}>
-                <span class="font-semibold text-xs uppercase tracking-wider">{i18n.t("pp.final_result")}</span>
-                <p class="mt-1">{result().final_text}</p>
+              <div class={`pt-2 border-t ${isDark() ? "border-border-subtle" : "border-border-subtle-lt"}`}>
+                <span class={`font-semibold text-xs uppercase tracking-wider ${isDark() ? "text-white/64" : "text-black/60"}`}>{i18n.t("pp.final_result")}</span>
+                <p class={`mt-1 ${isDark() ? "text-white/92" : "text-black/88"}`}>{result().final_text}</p>
               </div>
             </div>
           )}
         </Show>
-      </div>
+      </Section>
     </div>
   );
 }
@@ -656,24 +645,24 @@ function CustomPromptEditor(props: {
     <div class="space-y-2">
       <Input label={i18n.t("pp.name")} value={name()} onChange={setName} />
       <div>
-        <label class="block text-xs font-medium mb-1">{i18n.t("pp.system_prompt")}</label>
+        <label class={`block text-xs font-medium mb-1 ${props.isDark() ? "text-white/92" : "text-black/88"}`}>{i18n.t("pp.system_prompt")}</label>
         <textarea
-          class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
+          class={`w-full rounded-md px-3 py-2 text-sm border resize-none h-16 focus:outline-none focus:ring-2 focus:ring-accent-glow focus:border-accent ${
             props.isDark()
-              ? "bg-gray-900 border-gray-700 text-gray-100"
-              : "bg-white border-gray-300 text-gray-900"
+              ? "bg-surface-base border-border-default text-white/92"
+              : "bg-white border-border-default-lt text-black/88"
           }`}
           value={system()}
           onInput={(e) => setSystem(e.currentTarget.value)}
         />
       </div>
       <div>
-        <label class="block text-xs font-medium mb-1">{i18n.t("pp.instruction")}</label>
+        <label class={`block text-xs font-medium mb-1 ${props.isDark() ? "text-white/92" : "text-black/88"}`}>{i18n.t("pp.instruction")}</label>
         <textarea
-          class={`w-full rounded-lg px-3 py-2 text-sm border resize-none h-16 ${
+          class={`w-full rounded-md px-3 py-2 text-sm border resize-none h-16 focus:outline-none focus:ring-2 focus:ring-accent-glow focus:border-accent ${
             props.isDark()
-              ? "bg-gray-900 border-gray-700 text-gray-100"
-              : "bg-white border-gray-300 text-gray-900"
+              ? "bg-surface-base border-border-default text-white/92"
+              : "bg-white border-border-default-lt text-black/88"
           }`}
           value={instruction()}
           onInput={(e) => setInstruction(e.currentTarget.value)}
@@ -696,12 +685,12 @@ function PipelineStep(props: { label: string; text: string; isDark: () => boolea
     <div>
       <span
         class={`text-xs font-semibold uppercase tracking-wider ${
-          props.isDark() ? "text-gray-500" : "text-gray-400"
+          props.isDark() ? "text-white/44" : "text-black/40"
         }`}
       >
         {props.label}
       </span>
-      <p class="mt-0.5">{props.text}</p>
+      <p class={`mt-0.5 ${props.isDark() ? "text-white/92" : "text-black/88"}`}>{props.text}</p>
     </div>
   );
 }

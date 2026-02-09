@@ -17,19 +17,21 @@ export default function TabBar(props: TabBarProps) {
 
   return (
     <div
-      class={`flex border-b ${
-        isDark() ? "border-gray-800" : "border-gray-200"
+      class={`flex gap-1 rounded-xl p-1 ${
+        isDark() ? "bg-surface-raised" : "bg-surface-overlay-light"
       }`}
     >
       <For each={props.tabs}>
         {(tab) => (
           <button
-            class={`px-4 py-2 text-sm font-medium transition-colors ${
+            class={`px-3.5 py-1.5 text-xs rounded-lg transition-all ${
               props.active === tab.id
-                ? "text-blue-400 border-b-2 border-blue-400"
+                ? isDark()
+                  ? "font-semibold bg-surface-overlay text-white shadow-card"
+                  : "font-semibold bg-white text-black/88 shadow-card-lt"
                 : isDark()
-                  ? "text-gray-400 hover:text-gray-200"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "font-medium text-white/44 hover:text-white/64 hover:bg-white/5"
+                  : "font-medium text-black/40 hover:text-black/60 hover:bg-black/5"
             }`}
             onClick={() => props.onSelect(tab.id)}
           >

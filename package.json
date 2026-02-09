@@ -11,7 +11,8 @@
     "build:windows": "npx tauri build",
     "build:windows:cuda": "node scripts/prepare-worker.mjs --cuda",
     "build:all": "node scripts/build-all.mjs",
-    "dev:full": "npx tauri dev"
+    "dev:cpu": "npx tauri dev",
+    "dev:cuda": "npx tauri dev --features cuda"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

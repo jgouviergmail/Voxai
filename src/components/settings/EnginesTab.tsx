@@ -10,6 +10,7 @@ import {
 import { onDownloadProgress, onSettingsUpdated } from "../../lib/events";
 import Button from "../ui/Button";
 import ProgressBar from "../ui/ProgressBar";
+import Section from "../ui/Section";
 import { appStore } from "../../lib/stores";
 import { i18n } from "../../lib/i18n";
 
@@ -84,44 +85,55 @@ export default function EnginesTab() {
   };
 
   const isDark = () => appStore.theme() === "dark";
-  const cardBg = () => (isDark() ? "bg-gray-800" : "bg-gray-50");
+
+  const statusBadge = (engine: EngineInfo) =>
+    engine.loaded ? (
+      <span
+        class={`text-xs px-2 py-0.5 rounded-full ${
+          isDark()
+            ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20"
+            : "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200"
+        }`}
+      >
+        {i18n.t("engines.loaded")}
+      </span>
+    ) : (
+      <span
+        class={`text-xs px-2 py-0.5 rounded-full ${
+          isDark()
+            ? "bg-white/5 text-white/44"
+            : "bg-black/5 text-black/40"
+        }`}
+      >
+        {i18n.t("engines.not_loaded")}
+      </span>
+    );
 
   return (
-    <div class="space-y-6">
+    <div class="space-y-4">
       <For each={engines()}>
         {(engine) => (
-          <div>
-            <div class="mb-3">
-              <div class="flex items-center gap-2">
-                <h3 class="text-sm font-semibold">{(() => {
-                          const nameKey = `engines.name.${engine.id}`;
-                          const translated = i18n.t(nameKey);
-                          return translated !== nameKey ? translated : engine.name;
-                        })()}</h3>
-                <span
-                  class={`text-xs px-2 py-0.5 rounded-full ${
-                    engine.loaded
-                      ? isDark()
-                        ? "bg-green-900/50 text-green-400"
-                        : "bg-green-100 text-green-700"
-                      : isDark()
-                        ? "bg-gray-700 text-gray-500"
-                        : "bg-gray-200 text-gray-500"
-                  }`}
-                >
-                  {engine.loaded ? i18n.t("engines.loaded") : i18n.t("engines.not_loaded")}
-                </span>
-              </div>
-              <p class={`text-xs mt-1 ${isDark() ? "text-gray-400" : "text-gray-500"}`}>
-                {i18n.t(engine.name.toLowerCase().includes("whisper") ? "engines.whisper_desc" : "engines.llm_desc")}
-              </p>
-            </div>
+          <Section
+            title={(() => {
+              const nameKey = `engines.name.${engine.id}`;
+              const translated = i18n.t(nameKey);
+              return translated !== nameKey ? translated : engine.name;
+            })()}
+            action={statusBadge(engine)}
+          >
+            <p class={`text-xs mb-3 ${isDark() ? "text-white/44" : "text-black/40"}`}>
+              {i18n.t(engine.name.toLowerCase().includes("whisper") ? "engines.whisper_desc" : "engines.llm_desc")}
+            </p>
 
             <div class="space-y-2">
               <For each={engine.models}>
                 {(model) => (
                   <div
-                    class={`${cardBg()} rounded-lg p-3 flex items-center justify-between`}
+                    class={`rounded-lg p-3 flex items-center justify-between ${
+                      isDark()
+                        ? "bg-white/5 border border-border-subtle"
+                        : "bg-surface-base-light border border-border-subtle-lt"
+                    }`}
                   >
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
@@ -134,15 +146,15 @@ export default function EnginesTab() {
                           <span
                             class={`text-xs px-2 py-0.5 rounded-full ${
                               isDark()
-                                ? "bg-blue-900/50 text-blue-400"
-                                : "bg-blue-100 text-blue-700"
+                                ? "bg-accent-muted text-blue-400 ring-1 ring-blue-500/20"
+                                : "bg-blue-50 text-blue-600 ring-1 ring-blue-200"
                             }`}
                           >
                             {i18n.t("engines.active")}
                           </span>
                         </Show>
                       </div>
-                      <p class="text-xs text-gray-500 mt-0.5">
+                      <p class={`text-xs mt-0.5 ${isDark() ? "text-white/44" : "text-black/40"}`}>
                         {(() => {
                           const key = `model.desc.${model.id}`;
                           const translated = i18n.t(key);
@@ -210,12 +222,12 @@ export default function EnginesTab() {
                 )}
               </For>
             </div>
-          </div>
+          </Section>
         )}
       </For>
 
       <Show when={engines().length === 0}>
-        <p class="text-gray-500 text-sm">{i18n.t("engines.loading")}</p>
+        <p class={`text-sm ${isDark() ? "text-white/44" : "text-black/40"}`}>{i18n.t("engines.loading")}</p>
       </Show>
     </div>
   );

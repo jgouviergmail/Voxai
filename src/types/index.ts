@@ -180,4 +180,5 @@ export interface NvidiaInfo {
   gpu_name: string;
   driver_version: string;
   vram_mb: number;
+  cuda_compiled: boolean;
 }

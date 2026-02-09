@@ -16,18 +16,18 @@ export default function Button(props: ButtonProps) {
   const isDark = () => appStore.theme() === "dark";
 
   const baseClass =
-    "rounded-lg font-medium inline-flex items-center justify-center";
+    "rounded-md font-medium inline-flex items-center justify-center transition-all press-scale";
 
   const variantClass = () => {
     switch (variant()) {
       case "primary":
-        return "bg-blue-600 hover:bg-blue-700 text-white";
+        return "bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-600/20";
       case "secondary":
         return isDark()
-          ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-          : "bg-gray-100 hover:bg-gray-200 text-gray-700";
+          ? "bg-surface-overlay text-white/64 border border-border-subtle hover:bg-white/10"
+          : "bg-surface-overlay-light text-black/60 border border-border-subtle-lt hover:bg-black/5";
       case "danger":
-        return "bg-red-600 hover:bg-red-700 text-white";
+        return "bg-red-600 hover:bg-red-500 text-white shadow-sm shadow-red-600/20";
     }
   };
 

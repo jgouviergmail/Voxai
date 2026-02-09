@@ -35,6 +35,7 @@ const fr: Record<string, string> = {
   "general.driver": "Pilote",
   "general.enable_gpu": "Activer l'acceleration GPU",
   "general.enable_gpu_desc": "Utiliser le GPU NVIDIA pour l'inference LLM locale (necessite la compilation CUDA)",
+  "general.cpu_build_hint": "Ceci est un build CPU. Utilisez la version NVIDIA pour activer l'acceleration GPU.",
   "general.ui_language": "Langue de l'interface",
   "general.text_hotkey": "Raccourci traitement texte",
   "general.text_hotkey_enable": "Activer le raccourci traitement texte",

@@ -5,6 +5,7 @@ import {
   deleteSubstitution,
 } from "../../lib/commands";
 import Button from "../ui/Button";
+import Section from "../ui/Section";
 import { appStore } from "../../lib/stores";
 import { i18n } from "../../lib/i18n";
 
@@ -48,13 +49,12 @@ export default function SubstitutionsTab() {
   };
 
   const isDark = () => appStore.theme() === "dark";
-  const cardBg = () => (isDark() ? "bg-gray-800" : "bg-gray-50");
-  const mutedText = () => (isDark() ? "text-gray-400" : "text-gray-500");
+  const mutedText = () => (isDark() ? "text-white/44" : "text-black/40");
   const inputClass = () =>
-    `rounded-lg px-3 py-2 text-sm border ${
+    `rounded-md px-3 py-2 text-sm border ${
       isDark()
-        ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-600"
-        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
+        ? "bg-surface-raised border-border-default text-white/92 placeholder:text-white/30"
+        : "bg-white border-border-default-lt text-black/88 placeholder:text-black/30"
     }`;
 
   return (
@@ -64,37 +64,38 @@ export default function SubstitutionsTab() {
       </p>
 
       {/* Add new rule */}
-      <div class={`${cardBg()} rounded-lg p-4 space-y-3`}>
-        <h3 class="text-sm font-semibold">{i18n.t("sub.add")}</h3>
-        <div class="grid grid-cols-2 gap-2">
-          <input
-            class={inputClass()}
-            placeholder={i18n.t("sub.from_placeholder")}
-            value={newFrom()}
-            onInput={(e) => setNewFrom(e.currentTarget.value)}
-          />
-          <input
-            class={inputClass()}
-            placeholder={i18n.t("sub.to_placeholder")}
-            value={newTo()}
-            onInput={(e) => setNewTo(e.currentTarget.value)}
-          />
-        </div>
-        <div class="flex items-center justify-between">
-          <label class={`flex items-center gap-2 text-sm ${isDark() ? "text-gray-400" : "text-gray-500"}`}>
+      <Section title={i18n.t("sub.add")}>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
             <input
-              type="checkbox"
-              checked={newCaseSensitive()}
-              onChange={(e) => setNewCaseSensitive(e.currentTarget.checked)}
-              class="rounded"
+              class={inputClass()}
+              placeholder={i18n.t("sub.from_placeholder")}
+              value={newFrom()}
+              onInput={(e) => setNewFrom(e.currentTarget.value)}
             />
-            {i18n.t("sub.case_sensitive")}
-          </label>
-          <Button size="sm" onClick={handleAdd} disabled={!newFrom().trim()}>
-            {i18n.t("sub.add_button")}
-          </Button>
+            <input
+              class={inputClass()}
+              placeholder={i18n.t("sub.to_placeholder")}
+              value={newTo()}
+              onInput={(e) => setNewTo(e.currentTarget.value)}
+            />
+          </div>
+          <div class="flex items-center justify-between">
+            <label class={`flex items-center gap-2 text-sm ${isDark() ? "text-white/44" : "text-black/40"}`}>
+              <input
+                type="checkbox"
+                checked={newCaseSensitive()}
+                onChange={(e) => setNewCaseSensitive(e.currentTarget.checked)}
+                class="rounded"
+              />
+              {i18n.t("sub.case_sensitive")}
+            </label>
+            <Button size="sm" onClick={handleAdd} disabled={!newFrom().trim()}>
+              {i18n.t("sub.add_button")}
+            </Button>
+          </div>
         </div>
-      </div>
+      </Section>
 
       {/* Rules list */}
       <Show
@@ -107,18 +108,22 @@ export default function SubstitutionsTab() {
           <For each={rules()}>
             {(rule, index) => (
               <div
-                class={`${cardBg()} rounded-lg px-3 py-2 flex items-center justify-between`}
+                class={`rounded-lg px-3 py-2 flex items-center justify-between ${
+                  isDark()
+                    ? "bg-white/5 border border-border-subtle"
+                    : "bg-surface-base-light border border-border-subtle-lt"
+                }`}
               >
                 <div class="flex items-center gap-2 text-sm min-w-0" data-selectable>
                   <code class={isDark() ? "text-red-400" : "text-red-600"}>{rule.from}</code>
                   <span class={mutedText()}>&rarr;</span>
-                  <code class={isDark() ? "text-green-400" : "text-green-600"}>{rule.to || i18n.t("sub.remove")}</code>
+                  <code class={isDark() ? "text-emerald-400" : "text-emerald-600"}>{rule.to || i18n.t("sub.remove")}</code>
                   <Show when={rule.case_sensitive}>
-                    <span class="text-xs text-gray-600">[Aa]</span>
+                    <span class="text-xs text-white/44">[Aa]</span>
                   </Show>
                 </div>
                 <button
-                  class="text-gray-500 hover:text-red-400 transition-colors ml-2 text-sm"
+                  class={`${isDark() ? "text-white/44" : "text-black/40"} hover:text-red-400 transition-colors ml-2 text-sm`}
                   onClick={() => handleDelete(index())}
                   title="Delete"
                 >
@@ -132,7 +137,13 @@ export default function SubstitutionsTab() {
 
       {/* Test preview */}
       <Show when={rules().length > 0}>
-        <div class={`${cardBg()} rounded-lg p-4 space-y-2`}>
+        <div
+          class={`rounded-lg p-4 space-y-2 ${
+            isDark()
+              ? "bg-white/5 border border-border-subtle"
+              : "bg-surface-base-light border border-border-subtle-lt"
+          }`}
+        >
           <h3 class="text-sm font-semibold">{i18n.t("sub.preview")}</h3>
           <input
             class={inputClass()}
@@ -142,7 +153,7 @@ export default function SubstitutionsTab() {
             style={{ width: "100%" }}
           />
           <Show when={previewInput()}>
-            <div class={`text-sm mt-1 ${isDark() ? "text-gray-300" : "text-gray-700"}`}>
+            <div class={`text-sm mt-1 ${isDark() ? "text-white/92" : "text-black/88"}`}>
               <span class={mutedText()}>{i18n.t("sub.result")}</span>
               {applySubstitutionsLocally(previewInput(), rules())}
             </div>

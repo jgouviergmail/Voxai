@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+@theme {
+  /* === Surfaces (elevation-based, dark) === */
+  --color-surface-base:    #0f1117;
+  --color-surface-raised:  #161922;
+  --color-surface-overlay: #1c1f2b;
+  /* === Surfaces (light) === */
+  --color-surface-base-light:    #f8f9fb;
+  --color-surface-raised-light:  #ffffff;
+  --color-surface-overlay-light: #f1f3f7;
+  /* === Borders (opacity-based, dark) === */
+  --color-border-subtle:   rgba(255, 255, 255, 0.06);
+  --color-border-default:  rgba(255, 255, 255, 0.10);
+  --color-border-strong:   rgba(255, 255, 255, 0.16);
+  /* === Borders (light) === */
+  --color-border-subtle-lt:  rgba(0, 0, 0, 0.06);
+  --color-border-default-lt: rgba(0, 0, 0, 0.10);
+  --color-border-strong-lt:  rgba(0, 0, 0, 0.14);
+  /* === Accent === */
+  --color-accent:       #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-accent-muted: rgba(59, 130, 246, 0.15);
+  --color-accent-glow:  rgba(59, 130, 246, 0.25);
+  /* === Shadows (layered for realism) === */
+  --shadow-card:    0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-card-lt: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-float:   0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
 /* System font stack for a native feel */
 :root {
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -31,34 +59,27 @@ input, textarea, code, [data-selectable] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.3);
+  background: rgba(148, 163, 184, 0.2);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.5);
+  background: rgba(148, 163, 184, 0.35);
 }
 
 /* Selection color */
 ::selection {
-  background: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.2);
 }
 
 /* Focus ring utility */
 :focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline: 2px solid rgba(59, 130, 246, 0.4);
   outline-offset: 2px;
 }
 
-/* Smooth transitions for theme switching */
-* {
-  transition-property: background-color, border-color, color;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Except for elements that need instant transitions */
+/* Interactive element transitions */
 button, a, [role="switch"] {
-  transition-duration: 100ms;
+  transition: all 150ms ease;
 }
 
 /* Tauri window drag region */
@@ -68,4 +89,48 @@ button, a, [role="switch"] {
 [data-tauri-drag-region] button,
 [data-tauri-drag-region] a {
   -webkit-app-region: no-drag;
+}
+
+/* === Custom utilities === */
+
+/* Glow pulse for status dots */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 4px 1px var(--glow-color); }
+  50%      { box-shadow: 0 0 10px 3px var(--glow-color); }
+}
+.status-glow {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Glassmorphism (overlay pill) */
+.glass {
+  background: rgba(15, 17, 23, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Glassmorphism - higher opacity (overlay panel) */
+.glass-panel {
+  background: rgba(15, 17, 23, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Overlay expand animation */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-slide-down {
+  animation: slide-down 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Micro-interaction: press scale */
+.press-scale {
+  transition: transform 100ms ease;
+}
+.press-scale:active {
+  transform: scale(0.97);
 }

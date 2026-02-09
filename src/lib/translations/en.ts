@@ -35,6 +35,7 @@ const en: Record<string, string> = {
   "general.driver": "Driver",
   "general.enable_gpu": "Enable GPU acceleration",
   "general.enable_gpu_desc": "Use NVIDIA GPU for local LLM inference (requires CUDA build)",
+  "general.cpu_build_hint": "This is a CPU build. Use the NVIDIA version to enable GPU acceleration.",
   "general.ui_language": "Interface language",
   "general.text_hotkey": "Text processing hotkey",
   "general.text_hotkey_enable": "Enable text processing hotkey",

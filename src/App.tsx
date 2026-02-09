@@ -84,17 +84,33 @@ function App() {
     });
   });
 
-  const statusColor = () => {
-    const state = appStore.recordingState();
-    switch (state.kind) {
-      case "Idle":
-        return "bg-green-500";
-      case "Recording":
-        return "bg-red-500 animate-pulse";
-      case "Processing":
-        return "bg-yellow-500 animate-pulse";
+  const isDark = () => appStore.theme() === "dark";
+
+  const statusAccentBg = () => {
+    switch (appStore.recordingState().kind) {
+      case "Idle": return "bg-emerald-500";
+      case "Recording": return "bg-red-500";
+      case "Processing": return "bg-amber-500";
     }
   };
+
+  const statusDotBg = () => {
+    switch (appStore.recordingState().kind) {
+      case "Idle": return "bg-emerald-400";
+      case "Recording": return "bg-red-400";
+      case "Processing": return "bg-amber-400";
+    }
+  };
+
+  const statusGlowColor = () => {
+    switch (appStore.recordingState().kind) {
+      case "Idle": return "#34d399";
+      case "Recording": return "#f87171";
+      case "Processing": return "#fbbf24";
+    }
+  };
+
+  const isAnimated = () => appStore.recordingState().kind !== "Idle";
 
   const statusText = () => {
     const state = appStore.recordingState();
@@ -112,31 +128,35 @@ function App() {
 
   const statusBarJsx = () => (
     <div
-      class={`rounded-lg p-3 ${
-        appStore.theme() === "dark" ? "bg-gray-800" : "bg-gray-100"
+      class={`rounded-xl overflow-hidden flex items-stretch ${
+        isDark()
+          ? "bg-surface-raised border border-border-subtle"
+          : "bg-surface-raised-light border border-border-subtle-lt shadow-card-lt"
       }`}
     >
-      <div class="flex items-center gap-3">
-        <div class={`w-2.5 h-2.5 rounded-full ${statusColor()}`} />
-        <span class="text-sm font-medium">{statusText()}</span>
-        <span
-          class={`text-xs ml-auto ${
-            appStore.theme() === "dark" ? "text-gray-500" : "text-gray-400"
+      {/* Left accent strip */}
+      <div class={`w-1 shrink-0 ${statusAccentBg()}`} />
+      {/* Content */}
+      <div class="flex items-center gap-3 px-3 py-2.5 flex-1 min-w-0">
+        <div
+          class={`w-2 h-2 rounded-full shrink-0 ${statusDotBg()} ${isAnimated() ? "status-glow" : ""}`}
+          style={{ "--glow-color": statusGlowColor() }}
+        />
+        <span class="text-sm font-medium truncate">{statusText()}</span>
+        <kbd
+          class={`ml-auto shrink-0 px-2 py-0.5 rounded-md text-xs font-mono ${
+            isDark()
+              ? "bg-surface-overlay border border-border-subtle text-white/44"
+              : "bg-surface-overlay-light border border-border-subtle-lt text-black/40"
           }`}
         >
-          <kbd
-            class={`px-1.5 py-0.5 rounded text-xs ${
-              appStore.theme() === "dark" ? "bg-gray-700" : "bg-gray-200"
-            }`}
-          >
-            {(() => {
-              const cfg = appStore.config();
-              if (!cfg) return "Ctrl+Shift+Space";
-              const hk = cfg.general.hotkey;
-              return [...hk.modifiers, hk.key].join("+");
-            })()}
-          </kbd>
-        </span>
+          {(() => {
+            const cfg = appStore.config();
+            if (!cfg) return "Ctrl+Shift+Space";
+            const hk = cfg.general.hotkey;
+            return [...hk.modifiers, hk.key].join("+");
+          })()}
+        </kbd>
       </div>
     </div>
   );
@@ -169,11 +189,7 @@ function App() {
 
       <Show when={!appStore.config()}>
         <div class="p-4">
-          <p
-            class={`text-sm ${
-              appStore.theme() === "dark" ? "text-gray-500" : "text-gray-400"
-            }`}
-          >
+          <p class={`text-sm ${isDark() ? "text-white/44" : "text-black/40"}`}>
             {i18n.t("loading.settings")}
           </p>
           <Show when={loadError()}>
@@ -181,7 +197,7 @@ function App() {
               {loadError()}
             </p>
           </Show>
-          <p class="text-gray-600 text-[10px] mt-4 font-mono">v0.1.1</p>
+          <p class="text-white/30 text-[10px] mt-4 font-mono">v0.1.1</p>
         </div>
       </Show>
     </PageShell>

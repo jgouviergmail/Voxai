@@ -26,8 +26,7 @@ export default function HistoryTab() {
   };
 
   const isDark = () => appStore.theme() === "dark";
-  const cardBg = () => (isDark() ? "bg-gray-800" : "bg-gray-50");
-  const mutedText = () => (isDark() ? "text-gray-400" : "text-gray-500");
+  const mutedText = () => (isDark() ? "text-white/44" : "text-black/40");
 
   return (
     <div class="space-y-4">
@@ -49,7 +48,13 @@ export default function HistoryTab() {
         <div class="space-y-2">
           <For each={entries()}>
             {(entry) => (
-              <div class={`${cardBg()} rounded-lg p-3`}>
+              <div
+                class={`rounded-lg p-3 ${
+                  isDark()
+                    ? "bg-surface-raised border border-border-subtle"
+                    : "bg-white border border-border-subtle-lt shadow-card-lt"
+                }`}
+              >
                 <p class="text-sm">{entry.final_text}</p>
                 <Show when={entry.raw_text !== entry.final_text}>
                   <p class={`text-xs ${mutedText()} mt-1 italic`}>

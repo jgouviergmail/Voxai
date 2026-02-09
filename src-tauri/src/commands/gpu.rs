@@ -6,6 +6,8 @@ pub struct NvidiaInfo {
     pub gpu_name: String,
     pub driver_version: String,
     pub vram_mb: u64,
+    /// Whether this binary was compiled with CUDA support (`--features cuda`).
+    pub cuda_compiled: bool,
 }
 
 #[tauri::command]
@@ -36,6 +38,7 @@ pub fn detect_nvidia() -> Result<NvidiaInfo, crate::error::AppError> {
                     gpu_name: parts[0].to_string(),
                     driver_version: parts[1].to_string(),
                     vram_mb: vram,
+                    cuda_compiled: cfg!(feature = "cuda"),
                 })
             } else {
                 Ok(NvidiaInfo {
@@ -43,6 +46,7 @@ pub fn detect_nvidia() -> Result<NvidiaInfo, crate::error::AppError> {
                     gpu_name: String::new(),
                     driver_version: String::new(),
                     vram_mb: 0,
+                    cuda_compiled: cfg!(feature = "cuda"),
                 })
             }
         }
@@ -51,6 +55,7 @@ pub fn detect_nvidia() -> Result<NvidiaInfo, crate::error::AppError> {
             gpu_name: String::new(),
             driver_version: String::new(),
             vram_mb: 0,
+            cuda_compiled: cfg!(feature = "cuda"),
         }),
     }
 }

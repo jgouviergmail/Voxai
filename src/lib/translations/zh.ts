@@ -35,6 +35,7 @@ const zh: Record<string, string> = {
   "general.driver": "\u9a71\u52a8",
   "general.enable_gpu": "\u542f\u7528 GPU \u52a0\u901f",
   "general.enable_gpu_desc": "\u4f7f\u7528 NVIDIA GPU \u8fdb\u884c\u672c\u5730 LLM \u63a8\u7406\uff08\u9700\u8981 CUDA \u7f16\u8bd1\uff09",
+  "general.cpu_build_hint": "\u8fd9\u662f CPU \u7248\u672c\u3002\u8bf7\u4f7f\u7528 NVIDIA \u7248\u672c\u4ee5\u542f\u7528 GPU \u52a0\u901f\u3002",
   "general.ui_language": "\u754c\u9762\u8bed\u8a00",
   "general.text_hotkey": "\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",
   "general.text_hotkey_enable": "\u542f\u7528\u6587\u672c\u5904\u7406\u5feb\u6377\u952e",

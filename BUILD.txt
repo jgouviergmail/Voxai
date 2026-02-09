@@ -32,7 +32,9 @@ npx tauri build --features cuda
 
 Ou simplement via npm (auto-détection de tout) :
 
-npm run dev:full                    # dev CPU
+npm run dev                         # frontend
+npm run dev:cpu                     # dev CPU
+npm run dev:cuda                    # dev CUDA
 npm run build:windows               # build CPU
 npm run build:windows:cuda          # build CUDA
 npm run build:all                   # les deux d'un coup
