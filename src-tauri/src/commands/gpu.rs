@@ -10,11 +10,12 @@ pub struct NvidiaInfo {
     pub cuda_compiled: bool,
 }
 
+/// Returns the number of **physical** CPU cores (excludes hyperthreading).
+/// Whisper and llama.cpp inference are memory-bandwidth-bound — using only
+/// physical cores avoids cache thrashing from HT siblings.
 #[tauri::command]
 pub fn detect_cpu_count() -> u32 {
-    std::thread::available_parallelism()
-        .map(|n| n.get() as u32)
-        .unwrap_or(4)
+    num_cpus::get_physical() as u32
 }
 
 #[tauri::command]

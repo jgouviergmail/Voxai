@@ -54,7 +54,9 @@ pub fn resample_to_16k_mono(
     )
     .map_err(|e| AppError::Audio(format!("Failed to create resampler: {}", e)))?;
 
-    let mut output = Vec::new();
+    // Pre-allocate output based on expected resampled length (avoids ~8-9 reallocations)
+    let expected_len = mono.len() * TARGET_SAMPLE_RATE / source_rate + chunk_size;
+    let mut output = Vec::with_capacity(expected_len);
     let mut pos = 0;
 
     while pos + chunk_size <= mono.len() {

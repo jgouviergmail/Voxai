@@ -3,6 +3,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use tauri::{Emitter, Manager};
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod app_state;
 mod audio;
 mod commands;

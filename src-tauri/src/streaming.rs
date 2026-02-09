@@ -10,7 +10,7 @@ use crate::events;
 use crate::injection::TextInjector;
 use crate::llm::LlmBackend;
 use crate::postprocessing;
-use crate::stt::SttEngine;
+use crate::stt::{SttEngine, TranscriptionResult};
 
 pub struct StreamingResult {
     pub raw_segments: Vec<String>,
@@ -162,38 +162,46 @@ async fn process_segment(
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
     let resample_ms = t0.elapsed().as_millis();
 
-    // 2. Silero VAD validation — skip segments without speech (prevents hallucinations)
-    let t1 = Instant::now();
-    if let Some(vad_path) = vad_model_path {
-        let path = vad_path.clone();
-        let samples_for_vad = samples_16k.clone();
-        let has_speech = tauri::async_runtime::spawn_blocking(move || {
-            crate::stt::vad::validate_speech(&path, &samples_for_vad)
-        })
-        .await
-        .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
+    // 2+3. VAD validation + transcription in a single blocking task.
+    // Merging avoids cloning samples_16k (~192KB) and an extra thread dispatch.
+    let (vad_ms, transcribe_ms, transcription) = tauri::async_runtime::spawn_blocking({
+        let stt = Arc::clone(stt_engine);
+        let lang = stt_language.clone();
+        let prompt = prev_transcription.clone();
+        let vad_path = vad_model_path.clone();
+        move || -> Result<(u128, u128, Option<TranscriptionResult>), AppError> {
+            // VAD check first (no locks needed)
+            let vad_start = Instant::now();
+            if let Some(ref path) = vad_path {
+                let has_speech = crate::stt::vad::validate_speech(path, &samples_16k)?;
+                let vad_elapsed = vad_start.elapsed().as_millis();
+                if !has_speech {
+                    return Ok((vad_elapsed, 0u128, None));
+                }
+            }
+            let vad_elapsed = vad_start.elapsed().as_millis();
 
-        if !has_speech {
-            log::info!("[streaming] VAD rejected segment (no speech), skipping (vad={}ms)", t1.elapsed().as_millis());
-            return Ok(());
+            // Transcribe (acquires stt_engine lock)
+            let transcribe_start = Instant::now();
+            let engine = stt
+                .lock()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let result = engine.transcribe(&samples_16k, lang.as_deref(), prompt.as_deref())?;
+            let transcribe_elapsed = transcribe_start.elapsed().as_millis();
+
+            Ok((vad_elapsed, transcribe_elapsed, Some(result)))
         }
-    }
-    let vad_ms = t1.elapsed().as_millis();
-
-    // 3. Transcribe — pass previous transcription as context prompt
-    let t2 = Instant::now();
-    let stt = Arc::clone(stt_engine);
-    let lang = stt_language.clone();
-    let prompt = prev_transcription.clone();
-    let transcription = tauri::async_runtime::spawn_blocking(move || {
-        let engine = stt
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        engine.transcribe(&samples_16k, lang.as_deref(), prompt.as_deref())
     })
     .await
     .map_err(|e| AppError::Internal(format!("Task join error: {}", e)))??;
-    let transcribe_ms = t2.elapsed().as_millis();
+
+    let transcription = match transcription {
+        Some(t) => t,
+        None => {
+            log::info!("[streaming] VAD rejected segment (no speech), skipping (vad={}ms)", vad_ms);
+            return Ok(());
+        }
+    };
 
     if transcription.text.is_empty() {
         log::info!("[streaming] transcription empty, skipping (resample={}ms, vad={}ms, transcribe={}ms)",

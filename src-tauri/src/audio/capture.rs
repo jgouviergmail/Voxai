@@ -161,22 +161,12 @@ impl AudioCapture {
         self.sample_rate = resolved.config.sample_rate;
         self.channels = resolved.config.channels;
 
-        // Clear buffer (still used as backup for stop())
-        {
-            let mut buf = self
-                .buffer
-                .lock()
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            buf.clear();
-        }
-
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
-        let buffer = Arc::clone(&self.buffer);
 
+        // In streaming mode, audio is consumed via the mpsc channel.
+        // No backup buffer accumulation — avoids Mutex contention + memory waste
+        // (~4KB memcpy every 10ms, up to 115MB for a 5-minute recording).
         let stream = build_stream(&resolved, move |data: &[f32]| {
-            if let Ok(mut buf) = buffer.lock() {
-                buf.extend_from_slice(data);
-            }
             let _ = tx.send(data.to_vec());
         })?;
 

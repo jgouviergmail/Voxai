@@ -38,6 +38,11 @@ fn build_llm_worker() {
     // interference with the inner cargo's own build scripts (e.g. llama-cpp-sys-2).
     // Keep CARGO (binary path), CARGO_MAKEFLAGS (jobserver), PATH, and user
     // env vars like LIBCLANG_PATH, CUDA_PATH which are needed for compilation.
+    // Enable native SIMD (AVX2/FMA/etc.) for llama.cpp in the worker.
+    // llama-cpp-sys-2 build.rs reads CARGO_ENCODED_RUSTFLAGS for target-cpu;
+    // without this, it sets GGML_NATIVE=OFF and falls back to SSE2 baseline.
+    cmd.env("RUSTFLAGS", "-C target-cpu=native");
+
     cmd.env_remove("OUT_DIR")
         .env_remove("CARGO_MANIFEST_DIR")
         .env_remove("CARGO_MANIFEST_PATH")

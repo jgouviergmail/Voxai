@@ -16,12 +16,15 @@ use std::path::PathBuf;
 #[allow(deprecated)]
 use llama_cpp_2::model::{AddBos, LlamaModel, Special};
 use llama_cpp_2::context::LlamaContext;
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{KvCacheType, LlamaContextParams};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use serde::{Deserialize, Serialize};
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 const MAX_TOKENS: usize = 512;
 const N_CTX: u32 = 2048;
@@ -81,7 +84,7 @@ fn format_chat(system: &str, prompt: &str, template: &str) -> String {
     }
 }
 
-fn generate(ctx: &mut LlamaContext<'_>, prompt: &str, system: &str, chat_template: &str) -> Result<String, String> {
+fn generate(ctx: &mut LlamaContext<'_>, batch: &mut LlamaBatch, prompt: &str, system: &str, chat_template: &str) -> Result<String, String> {
     ctx.clear_kv_cache();
 
     let combined = format_chat(system, prompt, chat_template);
@@ -94,7 +97,7 @@ fn generate(ctx: &mut LlamaContext<'_>, prompt: &str, system: &str, chat_templat
         return Err("Prompt too long for context window".into());
     }
 
-    let mut batch = LlamaBatch::new(N_CTX as usize, 1);
+    batch.clear();
 
     for (i, &token) in tokens.iter().enumerate() {
         let is_last = i == tokens.len() - 1;
@@ -103,7 +106,7 @@ fn generate(ctx: &mut LlamaContext<'_>, prompt: &str, system: &str, chat_templat
             .map_err(|e| format!("Batch add error: {}", e))?;
     }
 
-    ctx.decode(&mut batch)
+    ctx.decode(batch)
         .map_err(|e| format!("Decode error: {}", e))?;
 
     // Low temperature + tight sampling for faithful reformulation (minimal creativity)
@@ -135,7 +138,7 @@ fn generate(ctx: &mut LlamaContext<'_>, prompt: &str, system: &str, chat_templat
             .add(token, n_decoded as i32, &[0], true)
             .map_err(|e| format!("Batch add error: {}", e))?;
 
-        ctx.decode(&mut batch)
+        ctx.decode(batch)
             .map_err(|e| format!("Decode error: {}", e))?;
 
         n_decoded += 1;
@@ -207,11 +210,20 @@ fn main() {
     }
 
     // Create context once — reused across all requests (cleared via clear_kv_cache)
+    let physical_cores = num_cpus::get_physical() as i32;
+    eprintln!("[llm-worker] Using {} physical CPU cores for inference", physical_cores);
     let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()));
+        .with_n_ctx(Some(NonZeroU32::new(N_CTX).unwrap()))
+        .with_n_threads(physical_cores)
+        .with_n_threads_batch(physical_cores)
+        .with_type_k(KvCacheType::Q8_0)
+        .with_type_v(KvCacheType::Q8_0);
     let mut ctx = model
         .new_context(&backend, ctx_params)
         .expect("Failed to create context");
+
+    // Reusable batch — cleared per request, avoids repeated allocation
+    let mut batch = LlamaBatch::new(N_CTX as usize, 1);
 
     // Signal readiness
     let mut stdout = io::stdout().lock();
@@ -245,7 +257,7 @@ fn main() {
         let resp = if req.command.as_deref() == Some("ping") {
             Response::pong()
         } else if let (Some(prompt), Some(system)) = (req.prompt.as_ref(), req.system.as_ref()) {
-            match generate(&mut ctx, prompt, system, chat_template) {
+            match generate(&mut ctx, &mut batch, prompt, system, chat_template) {
                 Ok(text) => Response::ok(text),
                 Err(e) => Response::err(e),
             }
