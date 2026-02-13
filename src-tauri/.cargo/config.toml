@@ -1,4 +1,11 @@
-# No special linker flags needed.
 # whisper-rs-sys and llama-cpp-sys-2 cannot coexist in the same binary
 # because they embed incompatible ggml versions.
 # Local LLM runs in a separate worker process (llm-worker crate).
+
+[env]
+# Disable native CPU detection in whisper.cpp/ggml to produce a portable binary.
+# Without this, CMake auto-detects the build machine's CPU features (e.g., AVX-512
+# on Intel) which crashes on AMD CPUs that lack those specific instructions.
+# With GGML_NATIVE=OFF, whisper.cpp falls back to AVX2/FMA/F16C/BMI2 (x86-64-v3),
+# supported by all modern CPUs: Intel Haswell+ (2013) and AMD Zen+ (2017).
+WHISPER_NATIVE = "OFF"

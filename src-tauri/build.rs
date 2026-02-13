@@ -4,6 +4,20 @@ use std::process::Command;
 
 fn main() {
     build_llm_worker();
+
+    // Delay-load CUDA DLLs so the app can start even without NVIDIA GPU/driver.
+    // Without this, cublas/cudart/nvcuda are PE import-time dependencies —
+    // the process crashes at startup if any DLL fails to load or initialize.
+    // With DELAYLOAD, they're loaded on first CUDA function call (during
+    // WhisperEngine::load_model with use_gpu=true).
+    if env::var("CARGO_FEATURE_CUDA").is_ok() {
+        for dll in CUDA_DLLS {
+            println!("cargo:rustc-link-arg-bins=/DELAYLOAD:{}", dll);
+        }
+        println!("cargo:rustc-link-arg-bins=/DELAYLOAD:nvcuda.dll");
+        println!("cargo:rustc-link-arg-bins=delayimp.lib");
+    }
+
     tauri_build::build();
 }
 
@@ -38,10 +52,14 @@ fn build_llm_worker() {
     // interference with the inner cargo's own build scripts (e.g. llama-cpp-sys-2).
     // Keep CARGO (binary path), CARGO_MAKEFLAGS (jobserver), PATH, and user
     // env vars like LIBCLANG_PATH, CUDA_PATH which are needed for compilation.
-    // Enable native SIMD (AVX2/FMA/etc.) for llama.cpp in the worker.
-    // llama-cpp-sys-2 build.rs reads CARGO_ENCODED_RUSTFLAGS for target-cpu;
-    // without this, it sets GGML_NATIVE=OFF and falls back to SSE2 baseline.
-    cmd.env("RUSTFLAGS", "-C target-cpu=native");
+    // Enable portable SIMD (AVX2/FMA/BMI2/F16C) for llama.cpp in the worker.
+    // Uses target-feature (NOT target-cpu) to avoid llama-cpp-sys-2 passing
+    // an invalid -march flag to MSVC. CARGO_CFG_TARGET_FEATURE propagates
+    // these features to the build script which maps them to GGML_AVX2=ON, etc.
+    // Portable across Intel (Haswell+, 2013) and AMD (Zen+, 2017).
+    // Do NOT use target-cpu=native — it bakes in the build machine's CPU
+    // features (e.g., AVX-512 on Intel) which crashes on AMD.
+    cmd.env("RUSTFLAGS", "-C target-feature=+avx,+avx2,+fma,+f16c,+bmi2");
 
     cmd.env_remove("OUT_DIR")
         .env_remove("CARGO_MANIFEST_DIR")
